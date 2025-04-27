@@ -5,6 +5,8 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 
+class InfiniteCanvas;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -13,8 +15,16 @@ public:
     MainWindow(QWidget* parent = nullptr);
     ~MainWindow();
 
+private slots:
+    void newFile();
+    void openFile();
+    void saveFile();
+    void showAbout();
+
 private:
-    QGraphicsView *m_graphics_view;
+    void setupMenus();
+    
+    InfiniteCanvas *m_graphics_view;
     QGraphicsScene *m_scene;
 };
 
