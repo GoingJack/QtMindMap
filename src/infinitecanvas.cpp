@@ -10,6 +10,10 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 #include <QFont>
+#include <QMenu>
+#include <QAction>
+#include <QDebug>
+#include <QScrollBar>
 
 InfiniteCanvas::InfiniteCanvas(QGraphicsScene *scene, QWidget *parent)
     : QGraphicsView(scene, parent),
@@ -154,5 +158,43 @@ void InfiniteCanvas::handleTextDrop(const QMimeData *mime_data, const QPointF &p
             text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
             text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
         }
+    }
+}
+
+// Context menu event handler implementation
+void InfiniteCanvas::contextMenuEvent(QContextMenuEvent *event)
+{
+    // Get the position of the event in scene coordinates
+    QPointF scene_pos = mapToScene(event->pos());
+    
+    // Create a menu
+    QMenu context_menu(this);
+    
+    // Check if any items are selected
+    if (!scene()->selectedItems().isEmpty()) {
+        // Add delete action to the menu
+        QAction *delete_action = context_menu.addAction("Delete");
+        connect(delete_action, &QAction::triggered, this, &InfiniteCanvas::deleteSelectedItems);
+    }
+    
+    // Only show the menu if it's not empty
+    if (!context_menu.actions().isEmpty()) {
+        context_menu.exec(event->globalPos());
+    } else {
+        // If no menu items, pass the event to the parent class
+        QGraphicsView::contextMenuEvent(event);
+    }
+}
+
+// Method to delete selected items
+void InfiniteCanvas::deleteSelectedItems()
+{
+    // Get the list of selected items
+    QList<QGraphicsItem*> selected_items = scene()->selectedItems();
+    
+    // Delete each selected item
+    for (QGraphicsItem *item : selected_items) {
+        scene()->removeItem(item);
+        delete item;
     }
 }

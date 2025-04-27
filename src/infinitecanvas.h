@@ -5,6 +5,7 @@
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <QMimeData>
+#include <QContextMenuEvent>
 
 class InfiniteCanvas : public QGraphicsView
 {
@@ -23,10 +24,16 @@ protected:
     void dragMoveEvent(QDragMoveEvent *event) override;
     void dropEvent(QDropEvent *event) override;
 
+    // Context menu event handler
+    void contextMenuEvent(QContextMenuEvent *event) override;
+
 private:
     // Helper methods for drag and drop
     void handleImageDrop(const QMimeData *mime_data, const QPointF &pos);
     void handleTextDrop(const QMimeData *mime_data, const QPointF &pos);
+    
+    // Helper method to delete selected items
+    void deleteSelectedItems();
 
     qreal m_scale_factor; // Tracks current scale factor
     qreal m_max_scale;    // Maximum allowed scale factor (4x)
