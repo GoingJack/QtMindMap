@@ -18,6 +18,8 @@ set(PROJECT_SOURCES
         src/main.cpp
         src/mainwindow.cpp
         src/mainwindow.h
+        src/infinitecanvas.h
+        src/infinitecanvas.cpp
 )
 
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
