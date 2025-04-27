@@ -55,6 +55,9 @@ public:
     // Scale factor getter and setter
     qreal getScaleFactor() const { return m_scale_factor; }
     void setScaleFactor(qreal factor) { m_scale_factor = factor; }
+    
+    // Reset zoom to 100%
+    void resetZoom();
 
 protected:
     void wheelEvent(QWheelEvent *event) override;

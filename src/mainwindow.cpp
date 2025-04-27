@@ -29,6 +29,7 @@
 #include <QFileInfo>
 #include <QIcon>
 #include <QPixmap>
+#include <QKeySequence>
 
 #include "infinitecanvas.h"
 
@@ -103,6 +104,15 @@ void MainWindow::setupMenus() {
   // Add Delete action
   QAction *delete_action = new QAction(tr("Delete"), this);
   edit_menu->addAction(delete_action);
+  
+  // Create View menu
+  QMenu *view_menu = menuBar()->addMenu(tr("View"));
+  
+  // Add Reset Zoom action
+  QAction *reset_zoom_action = new QAction(tr("Reset Zoom (100%)"), this);
+  reset_zoom_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_0));  // Ctrl+0 shortcut
+  view_menu->addAction(reset_zoom_action);
+  connect(reset_zoom_action, &QAction::triggered, this, &MainWindow::resetZoom);
   
   // Create Help menu
   QMenu *help_menu = menuBar()->addMenu(tr("Help"));
@@ -423,4 +433,11 @@ void MainWindow::tryLoadRecentFile() {
             m_current_file = recent_file;
         }
     }
+}
+
+// Reset zoom to 100%
+void MainWindow::resetZoom() {
+  if (m_graphics_view) {
+    m_graphics_view->resetZoom();
+  }
 }

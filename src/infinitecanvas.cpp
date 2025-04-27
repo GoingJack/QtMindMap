@@ -495,3 +495,18 @@ QString InfiniteCanvas::resolveShortcutTarget(const QString &shortcut_path)
     
     return target;
 }
+
+// Reset zoom to 100%
+void InfiniteCanvas::resetZoom() {
+    // Save center point
+    QPointF center_point = mapToScene(viewport()->rect().center());
+    
+    // Reset transform
+    resetTransform();
+    
+    // Set scale factor back to 1.0
+    m_scale_factor = 1.0;
+    
+    // Restore center point
+    centerOn(center_point);
+}

@@ -22,6 +22,7 @@ private slots:
     void openFile();
     void saveFile();
     void showAbout();
+    void resetZoom();
 
 private:
     void setupMenus();
