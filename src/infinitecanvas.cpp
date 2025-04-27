@@ -347,6 +347,9 @@ void InfiniteCanvas::handleTextDrop(const QMimeData *mime_data, const QPointF &p
             // Make the item selectable and movable
             text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
             text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
+            
+            // Enable text editing
+            text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
         }
     }
 }
