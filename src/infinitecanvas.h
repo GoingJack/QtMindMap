@@ -10,6 +10,10 @@ class InfiniteCanvas : public QGraphicsView
 {
 public:
     InfiniteCanvas(QGraphicsScene *scene, QWidget *parent = nullptr);
+    
+    // Scale factor getter and setter
+    qreal getScaleFactor() const { return m_scale_factor; }
+    void setScaleFactor(qreal factor) { m_scale_factor = factor; }
 
 protected:
     void wheelEvent(QWheelEvent *event) override;

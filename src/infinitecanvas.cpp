@@ -87,6 +87,7 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
 void InfiniteCanvas::handleImageDrop(const QMimeData *mime_data, const QPointF &pos)
 {
     QImage image;
+    QString file_path;
     
     // Try to get image directly from mime data
     if (mime_data->hasImage()) {
@@ -98,7 +99,7 @@ void InfiniteCanvas::handleImageDrop(const QMimeData *mime_data, const QPointF &
         for (const QUrl &url : urls) {
             // Only handle local files
             if (url.isLocalFile()) {
-                QString file_path = url.toLocalFile();
+                file_path = url.toLocalFile();
                 QImageReader reader(file_path);
                 if (reader.canRead()) {
                     image = reader.read();
@@ -114,6 +115,11 @@ void InfiniteCanvas::handleImageDrop(const QMimeData *mime_data, const QPointF &
         
         // Position the image at the drop position
         pixmap_item->setPos(pos);
+        
+        // Store the file path for serialization
+        if (!file_path.isEmpty()) {
+            pixmap_item->setData(0, file_path);
+        }
         
         // Add to scene
         scene()->addItem(pixmap_item);

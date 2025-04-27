@@ -15,6 +15,13 @@
 #include <QAction>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QTextStream>
+#include <QGraphicsTextItem>
+#include <QGraphicsPixmapItem>
 
 #include "infinitecanvas.h"
 
@@ -32,19 +39,6 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   m_scene = new QGraphicsScene(this);
   m_scene->setSceneRect(-5000, -5000, 10000, 10000);
-
-  // Add a red rectangle to the scene
-  QGraphicsRectItem *rect_item = new QGraphicsRectItem(-100, -50, 200, 100);
-  rect_item->setBrush(QBrush(Qt::red));
-  rect_item->setPen(QPen(Qt::black, 2));
-  m_scene->addItem(rect_item);
-
-  // Add a yellow circle to the scene
-  QGraphicsEllipseItem *circle_item =
-      new QGraphicsEllipseItem(150, -100, 150, 150);
-  circle_item->setBrush(QBrush(Qt::yellow));
-  circle_item->setPen(QPen(Qt::black, 2));
-  m_scene->addItem(circle_item);
 
   m_graphics_view = new InfiniteCanvas(m_scene, this);
 
@@ -116,17 +110,170 @@ void MainWindow::newFile() {
 
 void MainWindow::openFile() {
   // Show open file dialog
-  QString file_name = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("Mind Map Files (*.mm);;All Files (*)"));
+  QString file_name = QFileDialog::getOpenFileName(this, tr("Open File"), "", tr("JSON Files (*.json);;All Files (*)"));
   if (!file_name.isEmpty()) {
-    // Handle file opening
+    // Load the file
+    loadFromFile(file_name);
   }
 }
 
 void MainWindow::saveFile() {
   // Show save file dialog
-  QString file_name = QFileDialog::getSaveFileName(this, tr("Save File"), "", tr("Mind Map Files (*.mm);;All Files (*)"));
+  QString file_name = QFileDialog::getSaveFileName(this, tr("Save File"), "", tr("JSON Files (*.json);;All Files (*)"));
   if (!file_name.isEmpty()) {
-    // Handle file saving
+    // Save to the file
+    saveToFile(file_name);
+  }
+}
+
+void MainWindow::saveToFile(const QString &file_name) {
+  // Create a JSON object to store all data
+  QJsonObject json_data;
+  
+  // Save canvas view state
+  QJsonObject view_state;
+  view_state["scale_factor"] = m_graphics_view->getScaleFactor();
+  QPointF center_point = m_graphics_view->mapToScene(m_graphics_view->viewport()->rect().center());
+  view_state["center_x"] = center_point.x();
+  view_state["center_y"] = center_point.y();
+  json_data["view_state"] = view_state;
+  
+  // Save items
+  QJsonArray items_array;
+  
+  // Iterate through all items in the scene
+  foreach (QGraphicsItem *item, m_scene->items()) {
+    QJsonObject item_data;
+    
+    // Save position for all items
+    item_data["x"] = item->pos().x();
+    item_data["y"] = item->pos().y();
+    
+    // Handle text items
+    if (QGraphicsTextItem *text_item = dynamic_cast<QGraphicsTextItem*>(item)) {
+      item_data["type"] = "text";
+      item_data["content"] = text_item->toPlainText();
+      item_data["font_family"] = text_item->font().family();
+      item_data["font_size"] = text_item->font().pointSize();
+      item_data["color"] = text_item->defaultTextColor().name();
+    }
+    // Handle pixmap items (images)
+    else if (QGraphicsPixmapItem *pixmap_item = dynamic_cast<QGraphicsPixmapItem*>(item)) {
+      item_data["type"] = "image";
+      // We need to store image path, but QGraphicsPixmapItem doesn't store it
+      // We'll use an object property to store file path when loading an image
+      QVariant path_variant = pixmap_item->data(0);
+      if (path_variant.isValid()) {
+        item_data["file_path"] = path_variant.toString();
+      }
+    }
+    // Skip other item types
+    else {
+      continue;
+    }
+    
+    items_array.append(item_data);
+  }
+  
+  json_data["items"] = items_array;
+  
+  // Write JSON data to file
+  QFile save_file(file_name);
+  if (!save_file.open(QIODevice::WriteOnly)) {
+    QMessageBox::warning(this, tr("Save Error"),
+                         tr("Could not open file for writing."));
+    return;
+  }
+  
+  QJsonDocument save_doc(json_data);
+  save_file.write(save_doc.toJson());
+  save_file.close();
+}
+
+void MainWindow::loadFromFile(const QString &file_name) {
+  // Read the JSON file
+  QFile load_file(file_name);
+  if (!load_file.open(QIODevice::ReadOnly)) {
+    QMessageBox::warning(this, tr("Load Error"),
+                         tr("Could not open file for reading."));
+    return;
+  }
+  
+  QByteArray file_data = load_file.readAll();
+  load_file.close();
+  
+  QJsonDocument load_doc(QJsonDocument::fromJson(file_data));
+  QJsonObject json_data = load_doc.object();
+  
+  // Clear current scene
+  m_scene->clear();
+  
+  // Restore items
+  QJsonArray items_array = json_data["items"].toArray();
+  for (int i = 0; i < items_array.size(); ++i) {
+    QJsonObject item_data = items_array[i].toObject();
+    QString type = item_data["type"].toString();
+    QPointF pos(item_data["x"].toDouble(), item_data["y"].toDouble());
+    
+    if (type == "text") {
+      // Create text item
+      QString content = item_data["content"].toString();
+      QGraphicsTextItem *text_item = new QGraphicsTextItem(content);
+      
+      // Set font properties if available
+      if (item_data.contains("font_family") && item_data.contains("font_size")) {
+        QFont font(item_data["font_family"].toString(), item_data["font_size"].toInt());
+        text_item->setFont(font);
+      }
+      
+      // Set color if available
+      if (item_data.contains("color")) {
+        text_item->setDefaultTextColor(QColor(item_data["color"].toString()));
+      }
+      
+      // Set position and flags
+      text_item->setPos(pos);
+      text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+      text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
+      text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
+      
+      m_scene->addItem(text_item);
+    }
+    else if (type == "image") {
+      // Load image from file path
+      QString file_path = item_data["file_path"].toString();
+      QImage image(file_path);
+      
+      if (!image.isNull()) {
+        QGraphicsPixmapItem *pixmap_item = new QGraphicsPixmapItem(QPixmap::fromImage(image));
+        pixmap_item->setPos(pos);
+        pixmap_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+        pixmap_item->setFlag(QGraphicsItem::ItemIsMovable, true);
+        
+        // Store the file path for later saving
+        pixmap_item->setData(0, file_path);
+        
+        m_scene->addItem(pixmap_item);
+      }
+    }
+  }
+  
+  // Restore view state
+  if (json_data.contains("view_state")) {
+    QJsonObject view_state = json_data["view_state"].toObject();
+    
+    // Restore scale factor
+    double scale_factor = view_state["scale_factor"].toDouble();
+    m_graphics_view->resetTransform();
+    m_graphics_view->scale(scale_factor, scale_factor);
+    m_graphics_view->setScaleFactor(scale_factor);
+    
+    // Restore view center position
+    if (view_state.contains("center_x") && view_state.contains("center_y")) {
+      double center_x = view_state["center_x"].toDouble();
+      double center_y = view_state["center_y"].toDouble();
+      m_graphics_view->centerOn(center_x, center_y);
+    }
   }
 }
 

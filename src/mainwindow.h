@@ -23,6 +23,8 @@ private slots:
 
 private:
     void setupMenus();
+    void saveToFile(const QString &file_name);
+    void loadFromFile(const QString &file_name);
     
     InfiniteCanvas *m_graphics_view;
     QGraphicsScene *m_scene;
