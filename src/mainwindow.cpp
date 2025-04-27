@@ -22,6 +22,9 @@
 #include <QTextStream>
 #include <QGraphicsTextItem>
 #include <QGraphicsPixmapItem>
+#include <QStandardPaths>
+#include <QDir>
+#include <QSettings>
 
 #include "infinitecanvas.h"
 
@@ -51,6 +54,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   int x = (screen_geometry.width() - width()) / 2;
   int y = (screen_geometry.height() - height()) / 2;
   move(x, y);
+  
+  // Try to load the most recent file
+  tryLoadRecentFile();
 }
 
 void MainWindow::setupMenus() {
@@ -114,15 +120,28 @@ void MainWindow::openFile() {
   if (!file_name.isEmpty()) {
     // Load the file
     loadFromFile(file_name);
+    // Save this file as the most recent
+    saveRecentFilePath(file_name);
+    // Store current file
+    m_current_file = file_name;
   }
 }
 
 void MainWindow::saveFile() {
-  // Show save file dialog
-  QString file_name = QFileDialog::getSaveFileName(this, tr("Save File"), "", tr("JSON Files (*.json);;All Files (*)"));
-  if (!file_name.isEmpty()) {
-    // Save to the file
-    saveToFile(file_name);
+  if (!m_current_file.isEmpty()) {
+    // Save to the current file
+    saveToFile(m_current_file);
+  } else {
+    // Show save file dialog
+    QString file_name = QFileDialog::getSaveFileName(this, tr("Save File"), "", tr("JSON Files (*.json);;All Files (*)"));
+    if (!file_name.isEmpty()) {
+      // Save to the file
+      saveToFile(file_name);
+      // Save this file as the most recent
+      saveRecentFilePath(file_name);
+      // Store current file
+      m_current_file = file_name;
+    }
   }
 }
 
@@ -284,3 +303,44 @@ void MainWindow::showAbout() {
 }
 
 MainWindow::~MainWindow() {}
+
+// Method to save the most recent file path to an INI file
+void MainWindow::saveRecentFilePath(const QString &file_path) {
+    QString settings_path = getSettingsFilePath();
+    QSettings settings(settings_path, QSettings::IniFormat);
+    settings.setValue("RecentFile/Path", file_path);
+}
+
+// Method to load the most recent file path from an INI file
+QString MainWindow::loadRecentFilePath() {
+    QString settings_path = getSettingsFilePath();
+    QSettings settings(settings_path, QSettings::IniFormat);
+    return settings.value("RecentFile/Path", "").toString();
+}
+
+// Get the settings file path in the AppData directory
+QString MainWindow::getSettingsFilePath() {
+    // Get the AppData location
+    QString app_data_path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    
+    // Create the directory if it doesn't exist
+    QDir app_dir(app_data_path);
+    if (!app_dir.exists()) {
+        app_dir.mkpath(".");
+    }
+    
+    // Return the settings file path
+    return app_data_path + "/qtmindmap_settings.ini";
+}
+
+// Try to load the most recent file
+void MainWindow::tryLoadRecentFile() {
+    QString recent_file = loadRecentFilePath();
+    if (!recent_file.isEmpty()) {
+        QFile file(recent_file);
+        if (file.exists()) {
+            loadFromFile(recent_file);
+            m_current_file = recent_file;
+        }
+    }
+}
