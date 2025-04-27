@@ -7,6 +7,8 @@
 #include <QMimeData>
 #include <QContextMenuEvent>
 #include <QGraphicsPixmapItem>
+#include <QGraphicsSimpleTextItem>
+#include <QGraphicsItemGroup>
 
 // Custom shortcut item class
 class ShortcutItem : public QGraphicsPixmapItem
@@ -25,7 +27,7 @@ private:
 };
 
 // Custom directory item class
-class DirectoryItem : public QGraphicsPixmapItem
+class DirectoryItem : public QGraphicsItemGroup
 {
 public:
     DirectoryItem(const QPixmap &pixmap, const QString &dir_path, QGraphicsItem *parent = nullptr);
@@ -38,6 +40,11 @@ protected:
     
 private:
     QString m_dir_path;
+    QGraphicsPixmapItem *m_icon_item;
+    QGraphicsSimpleTextItem *m_label_item;
+    
+    // Helper method to get directory name from path
+    QString getDirName(const QString &path);
 };
 
 class InfiniteCanvas : public QGraphicsView

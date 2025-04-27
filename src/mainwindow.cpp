@@ -325,7 +325,7 @@ void MainWindow::loadFromFile(const QString &file_name) {
           pixmap.fill(Qt::transparent);
         }
         
-        // Create the directory item
+        // Create the directory item with label
         DirectoryItem *dir_item = new DirectoryItem(pixmap, dir_path);
         
         // Position at the saved location

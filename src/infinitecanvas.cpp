@@ -55,10 +55,32 @@ void ShortcutItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
 
 // DirectoryItem implementation
 DirectoryItem::DirectoryItem(const QPixmap &pixmap, const QString &dir_path, QGraphicsItem *parent)
-    : QGraphicsPixmapItem(pixmap, parent), m_dir_path(dir_path) {
+    : QGraphicsItemGroup(parent), m_dir_path(dir_path) {
     // Enable item flags
     setFlag(QGraphicsItem::ItemIsSelectable, true);
     setFlag(QGraphicsItem::ItemIsMovable, true);
+    
+    // Create the icon item
+    m_icon_item = new QGraphicsPixmapItem(pixmap, this);
+    addToGroup(m_icon_item);
+    
+    // Create the text label
+    QString dir_name = getDirName(dir_path);
+    m_label_item = new QGraphicsSimpleTextItem(dir_name, this);
+    
+    // Set font for label
+    QFont label_font("Arial", 10);
+    m_label_item->setFont(label_font);
+    
+    // Position label below icon
+    int icon_width = pixmap.width();
+    int icon_height = pixmap.height();
+    int label_width = m_label_item->boundingRect().width();
+    
+    // Center the label below the icon
+    m_label_item->setPos((icon_width - label_width) / 2, icon_height + 5);
+    
+    addToGroup(m_label_item);
     
     // Store the directory path as item data
     setData(0, dir_path);
@@ -72,7 +94,31 @@ void DirectoryItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
     }
     
     // Call the base implementation
-    QGraphicsPixmapItem::mouseDoubleClickEvent(event);
+    QGraphicsItemGroup::mouseDoubleClickEvent(event);
+}
+
+// Helper method to get directory name from path
+QString DirectoryItem::getDirName(const QString &path) {
+    QFileInfo file_info(path);
+    QString name = file_info.fileName();
+    
+    // If empty (might be a root directory), use the absolute path
+    if (name.isEmpty()) {
+        name = file_info.absoluteFilePath();
+        
+        // For Windows drives, clean up the name
+        if (name.endsWith(":/") || name.endsWith(":\\")) {
+            name = name.left(name.length() - 2);
+        }
+    }
+    
+    // Limit length to avoid very long names
+    const int MAX_NAME_LENGTH = 20;
+    if (name.length() > MAX_NAME_LENGTH) {
+        name = name.left(MAX_NAME_LENGTH - 3) + "...";
+    }
+    
+    return name;
 }
 
 // InfiniteCanvas implementation
@@ -267,7 +313,7 @@ void InfiniteCanvas::handleDirectoryDrop(const QUrl &url, const QPointF &pos)
         // Add to scene
         scene()->addItem(dir_item);
         
-        // Set tooltip to show directory path
+        // Set tooltip to show complete directory path
         dir_item->setToolTip(dir_path);
     }
 }
