@@ -24,6 +24,22 @@ private:
     QString m_target_path;
 };
 
+// Custom directory item class
+class DirectoryItem : public QGraphicsPixmapItem
+{
+public:
+    DirectoryItem(const QPixmap &pixmap, const QString &dir_path, QGraphicsItem *parent = nullptr);
+    
+    // Get the directory path
+    QString getDirPath() const { return m_dir_path; }
+    
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    
+private:
+    QString m_dir_path;
+};
+
 class InfiniteCanvas : public QGraphicsView
 {
 public:
@@ -49,12 +65,16 @@ private:
     void handleImageDrop(const QMimeData *mime_data, const QPointF &pos);
     void handleTextDrop(const QMimeData *mime_data, const QPointF &pos);
     void handleShortcutDrop(const QUrl &url, const QPointF &pos);
+    void handleDirectoryDrop(const QUrl &url, const QPointF &pos);
     
     // Helper method to delete selected items
     void deleteSelectedItems();
     
-    // Helper method to get icon for a file/shortcut
+    // Helper methods for file/directory handling
     QPixmap getFileIcon(const QString &file_path);
+    QPixmap getDirectoryIcon(const QString &dir_path);
+    bool isDirectory(const QString &path);
+    void openDirectory(const QString &dir_path);
     
     // Helper method to resolve shortcut target
     QString resolveShortcutTarget(const QString &shortcut_path);

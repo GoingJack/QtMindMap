@@ -185,6 +185,11 @@ void MainWindow::saveToFile(const QString &file_name) {
       item_data["type"] = "shortcut";
       item_data["target_path"] = item->data(0).toString();
     }
+    // Handle directory items
+    else if (item->data(1).toString() == "directory") {
+      item_data["type"] = "directory";
+      item_data["dir_path"] = item->data(0).toString();
+    }
     // Handle pixmap items (images)
     else if (QGraphicsPixmapItem *pixmap_item = dynamic_cast<QGraphicsPixmapItem*>(item)) {
       item_data["type"] = "image";
@@ -295,6 +300,42 @@ void MainWindow::loadFromFile(const QString &file_name) {
         
         // Add to scene
         m_scene->addItem(shortcut_item);
+      }
+    }
+    else if (type == "directory") {
+      // Create directory item
+      QString dir_path = item_data["dir_path"].toString();
+      
+      if (!dir_path.isEmpty()) {
+        // Get icon for the directory
+        QFileIconProvider icon_provider;
+        QFileInfo dir_info(dir_path);
+        QIcon icon = icon_provider.icon(QFileIconProvider::Folder);
+        
+        // For specific folder, use its actual icon if it exists
+        if (dir_info.exists()) {
+          icon = icon_provider.icon(dir_info);
+        }
+        
+        QPixmap pixmap = icon.pixmap(64, 64);
+        
+        // If we got an empty pixmap, use a default
+        if (pixmap.isNull()) {
+          pixmap = QPixmap(64, 64);
+          pixmap.fill(Qt::transparent);
+        }
+        
+        // Create the directory item
+        DirectoryItem *dir_item = new DirectoryItem(pixmap, dir_path);
+        
+        // Position at the saved location
+        dir_item->setPos(pos);
+        
+        // Set tooltip to show directory path
+        dir_item->setToolTip(dir_path);
+        
+        // Add to scene
+        m_scene->addItem(dir_item);
       }
     }
     else if (type == "image") {

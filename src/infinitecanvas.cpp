@@ -18,6 +18,8 @@
 #include <QFileInfo>
 #include <QFileIconProvider>
 #include <QGraphicsSceneMouseEvent>
+#include <QDir>
+#include <QDesktopServices>
 
 // Windows specific includes for shortcut handling
 #ifdef Q_OS_WIN
@@ -45,6 +47,28 @@ void ShortcutItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
     // Launch the associated application
     if (!m_target_path.isEmpty()) {
         QProcess::startDetached(m_target_path, QStringList());
+    }
+    
+    // Call the base implementation
+    QGraphicsPixmapItem::mouseDoubleClickEvent(event);
+}
+
+// DirectoryItem implementation
+DirectoryItem::DirectoryItem(const QPixmap &pixmap, const QString &dir_path, QGraphicsItem *parent)
+    : QGraphicsPixmapItem(pixmap, parent), m_dir_path(dir_path) {
+    // Enable item flags
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setFlag(QGraphicsItem::ItemIsMovable, true);
+    
+    // Store the directory path as item data
+    setData(0, dir_path);
+    setData(1, "directory"); // Mark as directory item
+}
+
+void DirectoryItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
+    // Open the directory in file explorer/Finder
+    if (!m_dir_path.isEmpty()) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(m_dir_path));
     }
     
     // Call the base implementation
@@ -113,7 +137,7 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
     
     const QMimeData *mime_data = event->mimeData();
     
-    // Handle URL drops (including shortcut files)
+    // Handle URL drops (including shortcuts and directories)
     if (mime_data->hasUrls()) {
         QList<QUrl> urls = mime_data->urls();
         bool handled = false;
@@ -123,8 +147,14 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
                 QString file_path = url.toLocalFile();
                 QFileInfo file_info(file_path);
                 
+                // Check if it's a directory
+                if (isDirectory(file_path)) {
+                    handleDirectoryDrop(url, scene_pos);
+                    handled = true;
+                    break;
+                }
                 // Check if it's a Windows shortcut file
-                if (file_info.suffix().toLower() == "lnk") {
+                else if (file_info.suffix().toLower() == "lnk") {
                     handleShortcutDrop(url, scene_pos);
                     handled = true;
                     break;
@@ -132,7 +162,7 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
             }
         }
         
-        // If not handled as a shortcut, try handling as an image
+        // If not handled as a directory or shortcut, try handling as an image
         if (!handled && (mime_data->hasImage() || mime_data->hasUrls())) {
             handleImageDrop(mime_data, scene_pos);
             handled = true;
@@ -220,6 +250,28 @@ void InfiniteCanvas::handleShortcutDrop(const QUrl &url, const QPointF &pos)
     }
 }
 
+void InfiniteCanvas::handleDirectoryDrop(const QUrl &url, const QPointF &pos)
+{
+    QString dir_path = url.toLocalFile();
+    
+    if (isDirectory(dir_path)) {
+        // Get directory icon
+        QPixmap icon = getDirectoryIcon(dir_path);
+        
+        // Create the directory item
+        DirectoryItem *dir_item = new DirectoryItem(icon, dir_path);
+        
+        // Position at drop location
+        dir_item->setPos(pos);
+        
+        // Add to scene
+        scene()->addItem(dir_item);
+        
+        // Set tooltip to show directory path
+        dir_item->setToolTip(dir_path);
+    }
+}
+
 void InfiniteCanvas::handleTextDrop(const QMimeData *mime_data, const QPointF &pos)
 {
     if (mime_data->hasText()) {
@@ -285,12 +337,49 @@ void InfiniteCanvas::deleteSelectedItems()
     }
 }
 
+// Check if the path is a directory
+bool InfiniteCanvas::isDirectory(const QString &path)
+{
+    QFileInfo file_info(path);
+    return file_info.isDir();
+}
+
+// Open directory in system file explorer
+void InfiniteCanvas::openDirectory(const QString &dir_path)
+{
+    QDesktopServices::openUrl(QUrl::fromLocalFile(dir_path));
+}
+
 // Get file icon
 QPixmap InfiniteCanvas::getFileIcon(const QString &file_path)
 {
     QFileIconProvider icon_provider;
     QFileInfo file_info(file_path);
     QIcon icon = icon_provider.icon(file_info);
+    
+    // Get a reasonable size for the icon
+    QPixmap pixmap = icon.pixmap(64, 64);
+    
+    // If we got an empty pixmap, use a default
+    if (pixmap.isNull()) {
+        pixmap = QPixmap(64, 64);
+        pixmap.fill(Qt::transparent);
+    }
+    
+    return pixmap;
+}
+
+// Get directory icon
+QPixmap InfiniteCanvas::getDirectoryIcon(const QString &dir_path)
+{
+    QFileIconProvider icon_provider;
+    QFileInfo dir_info(dir_path);
+    QIcon icon = icon_provider.icon(QFileIconProvider::Folder);
+    
+    // For specific folder, use its actual icon
+    if (dir_info.exists()) {
+        icon = icon_provider.icon(dir_info);
+    }
     
     // Get a reasonable size for the icon
     QPixmap pixmap = icon.pixmap(64, 64);
