@@ -25,6 +25,10 @@
 #include <QStandardPaths>
 #include <QDir>
 #include <QSettings>
+#include <QFileIconProvider>
+#include <QFileInfo>
+#include <QIcon>
+#include <QPixmap>
 
 #include "infinitecanvas.h"
 
@@ -176,6 +180,11 @@ void MainWindow::saveToFile(const QString &file_name) {
       item_data["font_size"] = text_item->font().pointSize();
       item_data["color"] = text_item->defaultTextColor().name();
     }
+    // Handle shortcut items
+    else if (item->data(1).toString() == "shortcut") {
+      item_data["type"] = "shortcut";
+      item_data["target_path"] = item->data(0).toString();
+    }
     // Handle pixmap items (images)
     else if (QGraphicsPixmapItem *pixmap_item = dynamic_cast<QGraphicsPixmapItem*>(item)) {
       item_data["type"] = "image";
@@ -257,6 +266,36 @@ void MainWindow::loadFromFile(const QString &file_name) {
       text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
       
       m_scene->addItem(text_item);
+    }
+    else if (type == "shortcut") {
+      // Create shortcut item
+      QString target_path = item_data["target_path"].toString();
+      
+      if (!target_path.isEmpty()) {
+        // Get icon for the shortcut
+        QFileIconProvider icon_provider;
+        QFileInfo file_info(target_path);
+        QIcon icon = icon_provider.icon(file_info);
+        QPixmap pixmap = icon.pixmap(64, 64);
+        
+        // If we got an empty pixmap, use a default
+        if (pixmap.isNull()) {
+          pixmap = QPixmap(64, 64);
+          pixmap.fill(Qt::transparent);
+        }
+        
+        // Create the shortcut item
+        ShortcutItem *shortcut_item = new ShortcutItem(pixmap, target_path);
+        
+        // Position at the saved location
+        shortcut_item->setPos(pos);
+        
+        // Set tooltip to show target path
+        shortcut_item->setToolTip(target_path);
+        
+        // Add to scene
+        m_scene->addItem(shortcut_item);
+      }
     }
     else if (type == "image") {
       // Load image from file path

@@ -6,6 +6,23 @@
 #include <QDropEvent>
 #include <QMimeData>
 #include <QContextMenuEvent>
+#include <QGraphicsPixmapItem>
+
+// Custom shortcut item class
+class ShortcutItem : public QGraphicsPixmapItem
+{
+public:
+    ShortcutItem(const QPixmap &pixmap, const QString &target_path, QGraphicsItem *parent = nullptr);
+    
+    // Get the target path of the shortcut
+    QString getTargetPath() const { return m_target_path; }
+    
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    
+private:
+    QString m_target_path;
+};
 
 class InfiniteCanvas : public QGraphicsView
 {
@@ -31,9 +48,16 @@ private:
     // Helper methods for drag and drop
     void handleImageDrop(const QMimeData *mime_data, const QPointF &pos);
     void handleTextDrop(const QMimeData *mime_data, const QPointF &pos);
+    void handleShortcutDrop(const QUrl &url, const QPointF &pos);
     
     // Helper method to delete selected items
     void deleteSelectedItems();
+    
+    // Helper method to get icon for a file/shortcut
+    QPixmap getFileIcon(const QString &file_path);
+    
+    // Helper method to resolve shortcut target
+    QString resolveShortcutTarget(const QString &shortcut_path);
 
     qreal m_scale_factor; // Tracks current scale factor
     qreal m_max_scale;    // Maximum allowed scale factor (4x)

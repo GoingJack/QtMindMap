@@ -7,6 +7,7 @@
 #include <QString>
 
 class InfiniteCanvas;
+class ShortcutItem;
 
 class MainWindow : public QMainWindow
 {
