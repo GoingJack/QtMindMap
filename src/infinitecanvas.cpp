@@ -143,21 +143,27 @@ InfiniteCanvas::InfiniteCanvas(QGraphicsScene *scene, QWidget *parent)
 }
 
 void InfiniteCanvas::wheelEvent(QWheelEvent *event) {
-  qreal factor = 1.03;
+  // Only zoom if Ctrl key is pressed
+  if (event->modifiers() & Qt::ControlModifier) {
+    qreal factor = 1.03;
 
-  if (event->angleDelta().y() > 0) {
-    // Zooming in - check if we're at max zoom
-    if (m_scale_factor * factor <= m_max_scale) {
-      scale(factor, factor);
-      m_scale_factor *= factor;
+    if (event->angleDelta().y() > 0) {
+      // Zooming in - check if we're at max zoom
+      if (m_scale_factor * factor <= m_max_scale) {
+        scale(factor, factor);
+        m_scale_factor *= factor;
+      }
+    } else {
+      // Zooming out
+      qreal zoom_out_factor = 1.0 / factor;
+      if (m_scale_factor * zoom_out_factor >= m_min_scale) {
+        scale(zoom_out_factor, zoom_out_factor);
+        m_scale_factor *= zoom_out_factor;
+      }
     }
   } else {
-    // Zooming out
-    qreal zoom_out_factor = 1.0 / factor;
-    if (m_scale_factor * zoom_out_factor >= m_min_scale) {
-      scale(zoom_out_factor, zoom_out_factor);
-      m_scale_factor *= zoom_out_factor;
-    }
+    // Pass the event to parent for normal scrolling
+    QGraphicsView::wheelEvent(event);
   }
 }
 
