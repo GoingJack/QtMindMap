@@ -31,6 +31,7 @@
 #include <QWheelEvent>
 #include <QtMath>
 #include <Windows.h>
+#include <QScrollBar>
 
 #include "infinitecanvas.h"
 
@@ -52,9 +53,15 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   layout->setContentsMargins(0, 0, 0, 0);
 
   m_scene = new QGraphicsScene(this);
-  m_scene->setSceneRect(-5000, -5000, 10000, 10000);
+  m_scene->setSceneRect(0, 0, 10000, 10000);
 
   m_graphics_view = new InfiniteCanvas(m_scene, this);
+  
+  // Initialize view scrollbar position, set the view center to scene position (0,0)
+  m_graphics_view->centerOn(0, 0);
+  // Set scrollbars to their starting position (left-top corner)
+  m_graphics_view->horizontalScrollBar()->setValue(0);
+  m_graphics_view->verticalScrollBar()->setValue(0);
 
   layout->addWidget(m_graphics_view);
 
