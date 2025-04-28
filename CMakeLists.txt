@@ -20,17 +20,25 @@ set(PROJECT_SOURCES
         src/mainwindow.h
         src/infinitecanvas.h
         src/infinitecanvas.cpp
+        src/pch.h
 )
 
+# Enable precompiled headers
 if(${QT_VERSION_MAJOR} GREATER_EQUAL 6)
     qt_add_executable(QtMindMap
         MANUAL_FINALIZATION
         ${PROJECT_SOURCES}
     )
+    # Add precompiled header
+    target_precompile_headers(QtMindMap PRIVATE src/pch.h)
 else()
     add_executable(QtMindMap
         ${PROJECT_SOURCES}
     )
+    # Add precompiled header
+    if(CMAKE_VERSION VERSION_GREATER_EQUAL 3.16)
+        target_precompile_headers(QtMindMap PRIVATE src/pch.h)
+    endif()
 endif()
 
 target_link_libraries(QtMindMap PRIVATE

@@ -1,39 +1,6 @@
+#include "pch.h"
+
 #include "infinitecanvas.h"
-
-#include <QWheelEvent>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsTextItem>
-#include <QImageReader>
-#include <QUrl>
-#include <QMimeData>
-#include <QDragEnterEvent>
-#include <QDragMoveEvent>
-#include <QDropEvent>
-#include <QFont>
-#include <QMenu>
-#include <QAction>
-#include <QDebug>
-#include <QScrollBar>
-#include <QProcess>
-#include <QFileInfo>
-#include <QFileIconProvider>
-#include <QGraphicsSceneMouseEvent>
-#include <QDir>
-#include <QDesktopServices>
-#include <QRegularExpression>
-#include <QPainter>
-#include <QApplication>
-#include <QClipboard>
-
-// Windows specific includes for shortcut handling
-#ifdef Q_OS_WIN
-#include <windows.h>
-#include <shlobj.h>
-#include <shlwapi.h>
-#include <objbase.h>
-#include <shobjidl.h>
-#include <objidl.h>
-#endif
 
 // ShortcutItem implementation
 ShortcutItem::ShortcutItem(const QPixmap &pixmap, const QString &target_path, QGraphicsItem *parent)

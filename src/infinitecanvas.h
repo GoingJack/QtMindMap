@@ -1,15 +1,7 @@
 #ifndef INFINITECANVAS_H
 #define INFINITECANVAS_H
 
-#include <QGraphicsView>
-#include <QDragEnterEvent>
-#include <QDropEvent>
-#include <QMimeData>
-#include <QContextMenuEvent>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsSimpleTextItem>
-#include <QGraphicsItemGroup>
-#include <QUrl>
+#include "pch.h"
 
 // Custom shortcut item class
 class ShortcutItem : public QGraphicsPixmapItem

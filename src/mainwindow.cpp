@@ -1,38 +1,6 @@
+#include "pch.h"
+
 #include "mainwindow.h"
-
-#include <QAction>
-#include <QApplication>
-#include <QDir>
-#include <QFile>
-#include <QFileDialog>
-#include <QFileIconProvider>
-#include <QFileInfo>
-#include <QGraphicsEllipseItem>
-#include <QGraphicsPixmapItem>
-#include <QGraphicsRectItem>
-#include <QGraphicsScene>
-#include <QGraphicsTextItem>
-#include <QGraphicsView>
-#include <QIcon>
-#include <QJsonArray>
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QKeySequence>
-#include <QMenu>
-#include <QMenuBar>
-#include <QMessageBox>
-#include <QPainter>
-#include <QPixmap>
-#include <QScreen>
-#include <QSettings>
-#include <QStandardPaths>
-#include <QTextStream>
-#include <QVBoxLayout>
-#include <QWheelEvent>
-#include <QtMath>
-#include <Windows.h>
-#include <QScrollBar>
-
 #include "infinitecanvas.h"
 
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
