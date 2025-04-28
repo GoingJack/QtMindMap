@@ -28,6 +28,8 @@ private slots:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void exportToPng();
+    void exportToPdf();
 
 private:
     void setupMenus();

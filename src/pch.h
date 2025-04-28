@@ -80,6 +80,9 @@
 #include <QDragMoveEvent>
 #include <QDropEvent>
 
+// Qt Print Support
+#include <QPrinter>
+
 // Windows specific
 #ifdef Q_OS_WIN
 #include <Windows.h>

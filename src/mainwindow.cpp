@@ -214,6 +214,18 @@ void MainWindow::setupMenus() {
   save_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_S));  // Add Ctrl+S shortcut
 
   file_menu->addSeparator();
+  
+  // Add Export to PNG action
+  QAction *export_png_action = new QAction(tr("Export to PNG"), this);
+  file_menu->addAction(export_png_action);
+  connect(export_png_action, &QAction::triggered, this, &MainWindow::exportToPng);
+  
+  // Add Export to PDF action
+  QAction *export_pdf_action = new QAction(tr("Export to PDF"), this);
+  file_menu->addAction(export_pdf_action);
+  connect(export_pdf_action, &QAction::triggered, this, &MainWindow::exportToPdf);
+
+  file_menu->addSeparator();
 
   // Add Exit action
   QAction *exit_action = new QAction(tr("Exit"), this);
@@ -1015,4 +1027,122 @@ void MainWindow::toggleAlwaysOnTop(bool checked) {
     showNormal();
   }
 #endif
+}
+
+// Export current canvas to PNG image
+void MainWindow::exportToPng()
+{
+    // Show save file dialog
+    QString file_name = QFileDialog::getSaveFileName(
+        this, tr("Export to PNG"), "", tr("PNG Images (*.png)"));
+    
+    if (file_name.isEmpty()) {
+        return;
+    }
+    
+    // Make sure the file has .png extension
+    if (!file_name.toLower().endsWith(".png")) {
+        file_name += ".png";
+    }
+    
+    // Get the scene rectangle or the current view if scene is empty
+    QRectF export_rect = m_scene->itemsBoundingRect();
+    
+    // If the scene is empty or very small, use a reasonable default size
+    if (export_rect.isEmpty() || (export_rect.width() < 10 && export_rect.height() < 10)) {
+        export_rect = QRectF(0, 0, 800, 600);
+    } else {
+        // Add some margin
+        export_rect.adjust(-10, -10, 10, 10);
+    }
+    
+    // Create a pixmap to render the scene onto
+    QPixmap pixmap(export_rect.width(), export_rect.height());
+    pixmap.fill(Qt::white);  // White background
+    
+    // Create a painter for the pixmap
+    QPainter painter(&pixmap);
+    
+    // Enable antialiasing for better quality
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    
+    // Render the scene onto the pixmap
+    m_scene->render(&painter, QRectF(), export_rect);
+    
+    // End painting
+    painter.end();
+    
+    // Save the pixmap to file
+    bool success = pixmap.save(file_name, "PNG");
+    
+    if (!success) {
+        QMessageBox::warning(this, tr("Export Error"),
+                             tr("Failed to save image to file."));
+    } else {
+        // Success message - could be shown in a status bar if available
+        QMessageBox::information(this, tr("Export Successful"),
+                                 tr("Canvas has been exported to PNG successfully."));
+    }
+}
+
+// Export current canvas to PDF document
+void MainWindow::exportToPdf()
+{
+    // Show save file dialog
+    QString file_name = QFileDialog::getSaveFileName(
+        this, tr("Export to PDF"), "", tr("PDF Documents (*.pdf)"));
+    
+    if (file_name.isEmpty()) {
+        return;
+    }
+    
+    // Make sure the file has .pdf extension
+    if (!file_name.toLower().endsWith(".pdf")) {
+        file_name += ".pdf";
+    }
+    
+    // Get the scene rectangle
+    QRectF export_rect = m_scene->itemsBoundingRect();
+    
+    // If the scene is empty or very small, use a reasonable default size
+    if (export_rect.isEmpty() || (export_rect.width() < 10 && export_rect.height() < 10)) {
+        export_rect = QRectF(0, 0, 800, 600);
+    } else {
+        // Add some margin
+        export_rect.adjust(-10, -10, 10, 10);
+    }
+    
+    // Setup printer
+    QPrinter printer(QPrinter::HighResolution);
+    printer.setOutputFormat(QPrinter::PdfFormat);
+    printer.setOutputFileName(file_name);
+    
+    // Set paper size to match the scene (convert from pixels to millimeters)
+    const qreal millimetersPerInch = 25.4;
+    const int dotsPerInch = 96; // Standard screen DPI
+    
+    qreal width_mm = (export_rect.width() / dotsPerInch) * millimetersPerInch;
+    qreal height_mm = (export_rect.height() / dotsPerInch) * millimetersPerInch;
+    
+    printer.setPageSize(QPageSize(QSizeF(width_mm, height_mm), QPageSize::Millimeter));
+    printer.setPageMargins(QMarginsF(0, 0, 0, 0));
+    
+    // Create painter
+    QPainter painter(&printer);
+    
+    // Enable high quality rendering
+    painter.setRenderHint(QPainter::Antialiasing);
+    painter.setRenderHint(QPainter::TextAntialiasing);
+    painter.setRenderHint(QPainter::SmoothPixmapTransform);
+    
+    // Render the scene to the printer
+    m_scene->render(&painter, QRectF(), export_rect);
+    
+    // End painting
+    painter.end();
+    
+    QMessageBox::information(this, tr("Export Successful"),
+                             tr("Canvas has been exported to PDF successfully."));
 }
