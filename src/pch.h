@@ -31,6 +31,7 @@
 #include <QTextStream>
 #include <QtMath>
 #include <QProcess>
+#include <QCoreApplication>
 
 // Qt GUI
 #include <QApplication>
@@ -55,6 +56,8 @@
 #include <QVBoxLayout>
 #include <QClipboard>
 #include <QImageReader>
+#include <QCloseEvent>
+#include <QSystemTrayIcon>
 
 // Qt Graphics
 #include <QGraphicsScene>

@@ -6,6 +6,9 @@
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowTitle(tr("QtMindMap"));
 
+  // Initialize member variables
+  m_tray_message_shown = false;
+
   // Create menu bar
   setupMenus();
 
@@ -41,8 +44,153 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   int y = (screen_geometry.height() - height()) / 2;
   move(x, y);
 
+  // Setup system tray icon
+  setupTrayIcon();
+
   // Try to load the most recent file
   tryLoadRecentFile();
+}
+
+void MainWindow::setupTrayIcon() {
+  // Check if system tray is supported
+  if (!QSystemTrayIcon::isSystemTrayAvailable()) {
+    qWarning() << "System tray is not available on this system";
+    return;
+  }
+
+  // Create tray icon menu
+  m_tray_menu = new QMenu(this);
+  
+  // Add "Show" menu item
+  QAction *show_action = new QAction(tr("Show"), this);
+  connect(show_action, &QAction::triggered, this, &MainWindow::showMainWindow);
+  m_tray_menu->addAction(show_action);
+  
+  // Add "Hide" menu item
+  QAction *hide_action = new QAction(tr("Hide"), this);
+  connect(hide_action, &QAction::triggered, this, &MainWindow::hideMainWindow);
+  m_tray_menu->addAction(hide_action);
+  
+  m_tray_menu->addSeparator();
+  
+  // Add "Exit" menu item
+  QAction *quit_action = new QAction(tr("Exit"), this);
+  connect(quit_action, &QAction::triggered, qApp, &QCoreApplication::quit);
+  m_tray_menu->addAction(quit_action);
+  
+  // Create system tray icon
+  m_tray_icon = new QSystemTrayIcon(this);
+  
+  // Get application icon or create one if not set
+  QIcon appIcon = QApplication::windowIcon();
+  if (appIcon.isNull()) {
+    // Create a default icon with modern color scheme
+    QPixmap pixmap(32, 32);
+    pixmap.fill(Qt::transparent);  // Start with transparent background
+    
+    QPainter painter(&pixmap);
+    painter.setRenderHint(QPainter::Antialiasing, true);  // Enable anti-aliasing
+    
+    // Create rounded rect path for the icon shape
+    QPainterPath path;
+    path.addRoundedRect(pixmap.rect(), 6, 6);  // 6px rounded corners - more subtle
+    
+    // Set clipping path to ensure everything is within the rounded rectangle
+    painter.setClipPath(path);
+    
+    // Create gradient background
+    QLinearGradient gradient(0, 0, pixmap.width(), pixmap.height());
+    gradient.setColorAt(0, QColor(41, 128, 185));    // Nice blue
+    gradient.setColorAt(1, QColor(142, 68, 173));    // Purple
+    
+    // Fill the rounded rectangle with gradient
+    painter.fillPath(path, gradient);
+    
+    // Add a subtle rounded rectangle as background for the text
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(255, 255, 255, 40));  // Semi-transparent white
+    painter.drawRoundedRect(pixmap.rect().adjusted(4, 4, -4, -4), 8, 8);
+    
+    // Draw the letter Q with shadow effect
+    painter.setPen(QColor(0, 0, 0, 40));  // Shadow color
+    painter.setFont(QFont("Arial", 20, QFont::Bold));
+    painter.drawText(pixmap.rect().adjusted(2, 2, 2, 2), Qt::AlignCenter, "Q");
+    
+    // Draw the letter Q
+    painter.setPen(QColor(255, 255, 255));  // White text
+    painter.drawText(pixmap.rect(), Qt::AlignCenter, "Q");
+    painter.end();
+    
+    // Set this as application icon
+    appIcon = QIcon(pixmap);
+    QApplication::setWindowIcon(appIcon);
+  }
+  
+  // Set tray icon to application icon
+  m_tray_icon->setIcon(appIcon);
+  
+  // Set tray icon tooltip
+  m_tray_icon->setToolTip(tr("QtMindMap"));
+  
+  // Set tray icon context menu
+  m_tray_icon->setContextMenu(m_tray_menu);
+  
+  // Connect tray icon activation signal
+  connect(m_tray_icon, &QSystemTrayIcon::activated, this, &MainWindow::trayIconActivated);
+  
+  // Show tray icon
+  m_tray_icon->show();
+  
+  qDebug() << "Tray icon setup complete, visibility:" << m_tray_icon->isVisible();
+}
+
+// Handle window close event
+void MainWindow::closeEvent(QCloseEvent *event) {
+  if (m_tray_icon && m_tray_icon->isVisible()) {
+    // If tray icon is visible, just hide the window instead of closing the application
+    hideMainWindow();
+    event->ignore();
+  } else {
+    // Otherwise handle close event normally
+    QMainWindow::closeEvent(event);
+  }
+}
+
+// Handle tray icon activation
+void MainWindow::trayIconActivated(QSystemTrayIcon::ActivationReason reason) {
+  switch (reason) {
+    case QSystemTrayIcon::Trigger:
+    case QSystemTrayIcon::DoubleClick:
+      // When single or double clicking tray icon, toggle main window visibility
+      if (!isVisible()) {
+        showMainWindow();
+      } else {
+        hideMainWindow();
+      }
+      break;
+    default:
+      break;
+  }
+}
+
+// Show main window
+void MainWindow::showMainWindow() {
+  show();
+  activateWindow();
+  raise();
+}
+
+// Hide main window
+void MainWindow::hideMainWindow() {
+  hide();
+  // Show notification message only on first minimize to tray
+  if (!m_tray_message_shown && m_tray_icon && QSystemTrayIcon::supportsMessages()) {
+    m_tray_icon->showMessage(tr("QtMindMap"), 
+                           tr("Application is still running in the system tray."),
+                           QSystemTrayIcon::Information, 
+                           3000);
+    m_tray_message_shown = true;
+  }
 }
 
 void MainWindow::setupMenus() {
@@ -70,7 +218,7 @@ void MainWindow::setupMenus() {
   // Add Exit action
   QAction *exit_action = new QAction(tr("Exit"), this);
   file_menu->addAction(exit_action);
-  connect(exit_action, &QAction::triggered, this, &MainWindow::close);
+  connect(exit_action, &QAction::triggered, qApp, &QCoreApplication::quit);
   exit_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_W));  // Add Ctrl+W shortcut
 
   // Create Edit menu
@@ -753,7 +901,14 @@ void MainWindow::showAbout() {
                         "Supports drag and drop of images and text."));
 }
 
-MainWindow::~MainWindow() {}
+MainWindow::~MainWindow() {
+  // Release tray icon resources
+  if (m_tray_icon) {
+    m_tray_icon->hide();
+  }
+  delete m_tray_menu;
+  delete m_tray_icon;
+}
 
 // Method to save the most recent file path to an INI file
 void MainWindow::saveRecentFilePath(const QString &file_path) {
