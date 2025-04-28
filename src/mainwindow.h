@@ -5,6 +5,7 @@
 #include <QGraphicsView>
 #include <QGraphicsScene>
 #include <QString>
+#include <QAction>
 
 class InfiniteCanvas;
 class ShortcutItem;
@@ -23,6 +24,7 @@ private slots:
     void saveFile();
     void showAbout();
     void resetZoom();
+    void toggleAlwaysOnTop(bool checked);
 
 private:
     void setupMenus();
@@ -38,6 +40,7 @@ private:
     InfiniteCanvas *m_graphics_view;
     QGraphicsScene *m_scene;
     QString m_current_file;
+    QAction *m_always_on_top_action;
 };
 
 #endif // MAINWINDOW_H
