@@ -9,6 +9,7 @@
 #include <QGraphicsPixmapItem>
 #include <QGraphicsSimpleTextItem>
 #include <QGraphicsItemGroup>
+#include <QUrl>
 
 // Custom shortcut item class
 class ShortcutItem : public QGraphicsPixmapItem
@@ -24,6 +25,27 @@ protected:
     
 private:
     QString m_target_path;
+};
+
+// Custom URL item class
+class UrlItem : public QGraphicsItemGroup
+{
+public:
+    UrlItem(const QPixmap &pixmap, const QUrl &url, QGraphicsItem *parent = nullptr);
+    
+    // Get the URL
+    QUrl getUrl() const { return m_url; }
+    
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    
+private:
+    QUrl m_url;
+    QGraphicsPixmapItem *m_icon_item;
+    QGraphicsSimpleTextItem *m_label_item;
+    
+    // Helper method to get website domain from URL
+    QString getDomainFromUrl(const QUrl &url);
 };
 
 // Custom directory item class
@@ -58,6 +80,9 @@ public:
     
     // Reset zoom to 100%
     void resetZoom();
+    
+    // Website icon getter
+    QPixmap getWebsiteIcon(const QUrl &url);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;
@@ -74,16 +99,18 @@ private:
     // Helper methods for drag and drop
     void handleImageDrop(const QMimeData *mime_data, const QPointF &pos);
     void handleTextDrop(const QMimeData *mime_data, const QPointF &pos);
+    void handleUrlDrop(const QString &url_str, const QPointF &pos);
     void handleShortcutDrop(const QUrl &url, const QPointF &pos);
     void handleDirectoryDrop(const QUrl &url, const QPointF &pos);
     
     // Helper method to delete selected items
     void deleteSelectedItems();
     
-    // Helper methods for file/directory handling
+    // Helper methods for file/directory/url handling
     QPixmap getFileIcon(const QString &file_path);
     QPixmap getDirectoryIcon(const QString &dir_path);
     bool isDirectory(const QString &path);
+    bool isUrl(const QString &text);
     void openDirectory(const QString &dir_path);
     
     // Helper method to resolve shortcut target

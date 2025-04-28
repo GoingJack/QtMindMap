@@ -9,6 +9,7 @@
 
 class InfiniteCanvas;
 class ShortcutItem;
+class UrlItem;
 
 class MainWindow : public QMainWindow
 {

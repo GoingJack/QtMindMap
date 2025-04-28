@@ -20,6 +20,8 @@
 #include <QGraphicsSceneMouseEvent>
 #include <QDir>
 #include <QDesktopServices>
+#include <QRegularExpression>
+#include <QPainter>
 
 // Windows specific includes for shortcut handling
 #ifdef Q_OS_WIN
@@ -119,6 +121,68 @@ QString DirectoryItem::getDirName(const QString &path) {
     }
     
     return name;
+}
+
+// UrlItem implementation
+UrlItem::UrlItem(const QPixmap &pixmap, const QUrl &url, QGraphicsItem *parent)
+    : QGraphicsItemGroup(parent), m_url(url) {
+    // Enable item flags
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setFlag(QGraphicsItem::ItemIsMovable, true);
+    
+    // Create the icon item
+    m_icon_item = new QGraphicsPixmapItem(pixmap, this);
+    addToGroup(m_icon_item);
+    
+    // Create the text label
+    QString domain = getDomainFromUrl(url);
+    m_label_item = new QGraphicsSimpleTextItem(domain, this);
+    
+    // Set font for label
+    QFont label_font("Arial", 10);
+    m_label_item->setFont(label_font);
+    
+    // Position label below icon
+    int icon_width = pixmap.width();
+    int icon_height = pixmap.height();
+    int label_width = m_label_item->boundingRect().width();
+    
+    // Center the label below the icon
+    m_label_item->setPos((icon_width - label_width) / 2, icon_height + 5);
+    
+    addToGroup(m_label_item);
+    
+    // Store the URL as item data
+    setData(0, url.toString());
+    setData(1, "url"); // Mark as URL item
+}
+
+void UrlItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
+    // Open the URL in the default browser
+    if (m_url.isValid()) {
+        QDesktopServices::openUrl(m_url);
+    }
+    
+    // Call the base implementation
+    QGraphicsItemGroup::mouseDoubleClickEvent(event);
+}
+
+// Helper method to get domain from URL
+QString UrlItem::getDomainFromUrl(const QUrl &url) {
+    QString host = url.host();
+    
+    // Remove 'www.' prefix if present
+    if (host.startsWith("www.")) {
+        host = host.mid(4);
+    }
+    
+    // Limit length to avoid very long names
+    const int MAX_NAME_LENGTH = 20;
+    if (host.length() > MAX_NAME_LENGTH) {
+        host = host.left(MAX_NAME_LENGTH - 3) + "...";
+    }
+    
+    return host;
 }
 
 // InfiniteCanvas implementation
@@ -330,28 +394,114 @@ void InfiniteCanvas::handleTextDrop(const QMimeData *mime_data, const QPointF &p
         QString text = mime_data->text();
         
         if (!text.isEmpty()) {
-            // Create a text item
-            QGraphicsTextItem *text_item = new QGraphicsTextItem(text);
-            
-            // Set font and other properties
-            QFont font("Arial", 12);
-            text_item->setFont(font);
-            text_item->setDefaultTextColor(Qt::black);
-            
-            // Position the text at the drop position
-            text_item->setPos(pos);
-            
-            // Add to scene
-            scene()->addItem(text_item);
-            
-            // Make the item selectable and movable
-            text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-            text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
-            
-            // Enable text editing
-            text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
+            // Check if the text is a URL
+            if (isUrl(text)) {
+                handleUrlDrop(text, pos);
+            } else {
+                // Create a text item
+                QGraphicsTextItem *text_item = new QGraphicsTextItem(text);
+                
+                // Set font and other properties
+                QFont font("Arial", 12);
+                text_item->setFont(font);
+                text_item->setDefaultTextColor(Qt::black);
+                
+                // Position the text at the drop position
+                text_item->setPos(pos);
+                
+                // Add to scene
+                scene()->addItem(text_item);
+                
+                // Make the item selectable and movable
+                text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
+                text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
+                
+                // Enable text editing
+                text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
+            }
         }
     }
+}
+
+// Handle URL drop
+void InfiniteCanvas::handleUrlDrop(const QString &url_str, const QPointF &pos)
+{
+    // Normalize URL format
+    QString normalized_url = url_str;
+    
+    // Add http:// prefix if missing
+    if (!normalized_url.startsWith("http://") && !normalized_url.startsWith("https://") && !normalized_url.startsWith("ftp://")) {
+        normalized_url = "http://" + normalized_url;
+    }
+    
+    QUrl url(normalized_url);
+    
+    if (url.isValid()) {
+        // Get icon for the website
+        QPixmap icon = getWebsiteIcon(url);
+        
+        // Create the URL item
+        UrlItem *url_item = new UrlItem(icon, url);
+        
+        // Position at drop location
+        url_item->setPos(pos);
+        
+        // Add to scene
+        scene()->addItem(url_item);
+        
+        // Set tooltip to show full URL
+        url_item->setToolTip(url.toString());
+    }
+}
+
+// Get website icon using network request to fetch favicon
+QPixmap InfiniteCanvas::getWebsiteIcon(const QUrl &url)
+{
+    // Create a default icon with domain initial
+    QPixmap fallback_icon(64, 64);
+    fallback_icon.fill(Qt::lightGray);
+    
+    QPainter painter(&fallback_icon);
+    painter.setPen(Qt::blue);
+    painter.setFont(QFont("Arial", 32, QFont::Bold));
+    
+    QString letter;
+    if (url.host().isEmpty()) {
+        letter = "W";
+    } else {
+        letter = QString(url.host().at(0).toUpper());
+    }
+    painter.drawText(fallback_icon.rect(), Qt::AlignCenter, letter);
+    
+    return fallback_icon;
+}
+
+// Check if text is a URL
+bool InfiniteCanvas::isUrl(const QString &text)
+{
+    // URLs with protocol
+    QRegularExpression urlWithProtocolRegex(
+        "^(https?|ftp)://[^\\s/$.?#].[^\\s]*$",
+        QRegularExpression::CaseInsensitiveOption
+    );
+    
+    // URLs without protocol (www...)
+    QRegularExpression wwwRegex(
+        "^www\\.[^\\s/$.?#].[^\\s]*$", 
+        QRegularExpression::CaseInsensitiveOption
+    );
+    
+    // Domain-only URLs (example.com, example.org, etc.)
+    QRegularExpression domainRegex(
+        "^[a-zA-Z0-9][-a-zA-Z0-9]*\\.[a-zA-Z0-9][-a-zA-Z0-9]*(\\.[a-zA-Z0-9][-a-zA-Z0-9]*)*$",
+        QRegularExpression::CaseInsensitiveOption
+    );
+    
+    bool matchesProtocol = urlWithProtocolRegex.match(text).hasMatch();
+    bool matchesWww = wwwRegex.match(text).hasMatch();
+    bool matchesDomain = domainRegex.match(text).hasMatch();
+    
+    return matchesProtocol || matchesWww || matchesDomain;
 }
 
 // Context menu event handler implementation

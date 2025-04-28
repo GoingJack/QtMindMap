@@ -215,6 +215,11 @@ void MainWindow::saveToFile(const QString &file_name) {
       item_data["type"] = "shortcut";
       item_data["target_path"] = item->data(0).toString();
     }
+    // Handle URL items
+    else if (item->data(1).toString() == "url") {
+      item_data["type"] = "url";
+      item_data["url"] = item->data(0).toString();
+    }
     // Handle directory items
     else if (item->data(1).toString() == "directory") {
       item_data["type"] = "directory";
@@ -332,6 +337,29 @@ void MainWindow::loadFromFile(const QString &file_name) {
 
         // Add to scene
         m_scene->addItem(shortcut_item);
+      }
+    } else if (type == "url") {
+      // Create URL item
+      QString url_str = item_data["url"].toString();
+
+      if (!url_str.isEmpty()) {
+        QUrl url(url_str);
+        if (url.isValid()) {
+          // Get icon for the website
+          QPixmap icon = m_graphics_view->getWebsiteIcon(url);
+          
+          // Create the URL item
+          UrlItem *url_item = new UrlItem(icon, url);
+          
+          // Position at the saved location
+          url_item->setPos(pos);
+          
+          // Set tooltip to show URL
+          url_item->setToolTip(url_str);
+          
+          // Add to scene
+          m_scene->addItem(url_item);
+        }
       }
     } else if (type == "directory") {
       // Create directory item
