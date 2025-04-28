@@ -131,6 +131,9 @@ private:
     // Helper method to delete selected items
     void deleteSelectedItems();
     
+    // Helper method to copy selected items to clipboard
+    void copySelectedItemsToClipboard();
+    
     // Helper methods for file/directory/url handling
     QPixmap getFileIcon(const QString &file_path);
     QPixmap getDirectoryIcon(const QString &dir_path);

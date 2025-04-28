@@ -22,6 +22,8 @@
 #include <QDesktopServices>
 #include <QRegularExpression>
 #include <QPainter>
+#include <QApplication>
+#include <QClipboard>
 
 // Windows specific includes for shortcut handling
 #ifdef Q_OS_WIN
@@ -579,8 +581,12 @@ void InfiniteCanvas::contextMenuEvent(QContextMenuEvent *event)
     
     // Check if any items are selected
     if (!scene()->selectedItems().isEmpty()) {
+        // Add copy action to the menu
+        QAction *copy_action = context_menu.addAction(QObject::tr("Copy to Clipboard"));
+        connect(copy_action, &QAction::triggered, this, &InfiniteCanvas::copySelectedItemsToClipboard);
+        
         // Add delete action to the menu
-        QAction *delete_action = context_menu.addAction("Delete");
+        QAction *delete_action = context_menu.addAction(QObject::tr("Delete"));
         connect(delete_action, &QAction::triggered, this, &InfiniteCanvas::deleteSelectedItems);
     }
     
@@ -591,6 +597,70 @@ void InfiniteCanvas::contextMenuEvent(QContextMenuEvent *event)
         // If no menu items, pass the event to the parent class
         QGraphicsView::contextMenuEvent(event);
     }
+}
+
+// Method to copy selected items to clipboard
+void InfiniteCanvas::copySelectedItemsToClipboard()
+{
+    // Get the list of selected items
+    QList<QGraphicsItem*> selected_items = scene()->selectedItems();
+    
+    if (selected_items.isEmpty()) {
+        return;
+    }
+    
+    // If multiple items are selected, only copy the first one
+    QGraphicsItem *item = selected_items.first();
+    
+    // Create a new mime data object
+    QMimeData *mime_data = new QMimeData();
+    
+    // Handle text items
+    if (QGraphicsTextItem *text_item = dynamic_cast<QGraphicsTextItem*>(item)) {
+        QString text = text_item->toPlainText();
+        mime_data->setText(text);
+    }
+    // Handle URL items
+    else if (item->data(1).toString() == "url") {
+        QString url_str = item->data(0).toString();
+        mime_data->setUrls(QList<QUrl>() << QUrl(url_str));
+        mime_data->setText(url_str);
+    }
+    // Handle shortcut items
+    else if (item->data(1).toString() == "shortcut") {
+        QString path = item->data(0).toString();
+        mime_data->setUrls(QList<QUrl>() << QUrl::fromLocalFile(path));
+        mime_data->setText(path);
+    }
+    // Handle directory items
+    else if (item->data(1).toString() == "directory") {
+        QString dir_path = item->data(0).toString();
+        mime_data->setUrls(QList<QUrl>() << QUrl::fromLocalFile(dir_path));
+        mime_data->setText(dir_path);
+    }
+    // Handle media items
+    else if (item->data(1).toString() == "media") {
+        QString media_path = item->data(0).toString();
+        mime_data->setUrls(QList<QUrl>() << QUrl::fromLocalFile(media_path));
+        mime_data->setText(media_path);
+    }
+    // Handle image items
+    else if (QGraphicsPixmapItem *pixmap_item = dynamic_cast<QGraphicsPixmapItem*>(item)) {
+        // First check if it has a file path stored
+        QVariant path_variant = pixmap_item->data(0);
+        if (path_variant.isValid()) {
+            QString file_path = path_variant.toString();
+            mime_data->setUrls(QList<QUrl>() << QUrl::fromLocalFile(file_path));
+            mime_data->setText(file_path);
+        }
+        
+        // Also add the image data
+        QPixmap pixmap = pixmap_item->pixmap();
+        mime_data->setImageData(pixmap.toImage());
+    }
+    
+    // Set the mime data to the clipboard
+    QApplication::clipboard()->setMimeData(mime_data);
 }
 
 // Method to delete selected items
