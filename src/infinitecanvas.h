@@ -69,6 +69,27 @@ private:
     QString getDirName(const QString &path);
 };
 
+// Custom media item class for audio/video files
+class MediaItem : public QGraphicsItemGroup
+{
+public:
+    MediaItem(const QPixmap &pixmap, const QString &media_path, QGraphicsItem *parent = nullptr);
+    
+    // Get the media file path
+    QString getMediaPath() const { return m_media_path; }
+    
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    
+private:
+    QString m_media_path;
+    QGraphicsPixmapItem *m_icon_item;
+    QGraphicsSimpleTextItem *m_label_item;
+    
+    // Helper method to get file name from path
+    QString getFileName(const QString &path);
+};
+
 class InfiniteCanvas : public QGraphicsView
 {
 public:
@@ -83,6 +104,9 @@ public:
     
     // Website icon getter
     QPixmap getWebsiteIcon(const QUrl &url);
+    
+    // Media file icon getter
+    QPixmap getMediaIcon(const QString &media_path);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;
@@ -102,6 +126,7 @@ private:
     void handleUrlDrop(const QString &url_str, const QPointF &pos);
     void handleShortcutDrop(const QUrl &url, const QPointF &pos);
     void handleDirectoryDrop(const QUrl &url, const QPointF &pos);
+    void handleMediaDrop(const QUrl &url, const QPointF &pos);
     
     // Helper method to delete selected items
     void deleteSelectedItems();
@@ -111,6 +136,7 @@ private:
     QPixmap getDirectoryIcon(const QString &dir_path);
     bool isDirectory(const QString &path);
     bool isUrl(const QString &text);
+    bool isMediaFile(const QString &file_path);
     void openDirectory(const QString &dir_path);
     
     // Helper method to resolve shortcut target

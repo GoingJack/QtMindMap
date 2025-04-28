@@ -225,6 +225,11 @@ void MainWindow::saveToFile(const QString &file_name) {
       item_data["type"] = "directory";
       item_data["dir_path"] = item->data(0).toString();
     }
+    // Handle media items
+    else if (item->data(1).toString() == "media") {
+      item_data["type"] = "media";
+      item_data["media_path"] = item->data(0).toString();
+    }
     // Handle pixmap items (images)
     else if (QGraphicsPixmapItem *pixmap_item =
                  dynamic_cast<QGraphicsPixmapItem *>(item)) {
@@ -395,6 +400,26 @@ void MainWindow::loadFromFile(const QString &file_name) {
 
         // Add to scene
         m_scene->addItem(dir_item);
+      }
+    } else if (type == "media") {
+      // Create media item
+      QString media_path = item_data["media_path"].toString();
+
+      if (!media_path.isEmpty()) {
+        // Get icon for the media file
+        QPixmap icon = m_graphics_view->getMediaIcon(media_path);
+        
+        // Create the media item
+        MediaItem *media_item = new MediaItem(icon, media_path);
+        
+        // Position at the saved location
+        media_item->setPos(pos);
+        
+        // Set tooltip to show media path
+        media_item->setToolTip(media_path);
+        
+        // Add to scene
+        m_scene->addItem(media_item);
       }
     } else if (type == "image") {
       // Load image from file path

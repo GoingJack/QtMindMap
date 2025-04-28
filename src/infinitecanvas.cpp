@@ -123,6 +123,64 @@ QString DirectoryItem::getDirName(const QString &path) {
     return name;
 }
 
+// MediaItem implementation
+MediaItem::MediaItem(const QPixmap &pixmap, const QString &media_path, QGraphicsItem *parent)
+    : QGraphicsItemGroup(parent), m_media_path(media_path) {
+    // Enable item flags
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setFlag(QGraphicsItem::ItemIsMovable, true);
+    
+    // Create the icon item
+    m_icon_item = new QGraphicsPixmapItem(pixmap, this);
+    addToGroup(m_icon_item);
+    
+    // Create the text label
+    QString file_name = getFileName(media_path);
+    m_label_item = new QGraphicsSimpleTextItem(file_name, this);
+    
+    // Set font for label
+    QFont label_font("Arial", 10);
+    m_label_item->setFont(label_font);
+    
+    // Position label below icon
+    int icon_width = pixmap.width();
+    int icon_height = pixmap.height();
+    int label_width = m_label_item->boundingRect().width();
+    
+    // Center the label below the icon
+    m_label_item->setPos((icon_width - label_width) / 2, icon_height + 5);
+    
+    addToGroup(m_label_item);
+    
+    // Store the media path as item data
+    setData(0, media_path);
+    setData(1, "media"); // Mark as media item
+}
+
+void MediaItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) {
+    // Open the media file with default application
+    if (!m_media_path.isEmpty()) {
+        QDesktopServices::openUrl(QUrl::fromLocalFile(m_media_path));
+    }
+    
+    // Call the base implementation
+    QGraphicsItemGroup::mouseDoubleClickEvent(event);
+}
+
+// Helper method to get file name from path
+QString MediaItem::getFileName(const QString &path) {
+    QFileInfo file_info(path);
+    QString name = file_info.fileName();
+    
+    // Limit length to avoid very long names
+    const int MAX_NAME_LENGTH = 20;
+    if (name.length() > MAX_NAME_LENGTH) {
+        name = name.left(MAX_NAME_LENGTH - 3) + "...";
+    }
+    
+    return name;
+}
+
 // UrlItem implementation
 UrlItem::UrlItem(const QPixmap &pixmap, const QUrl &url, QGraphicsItem *parent)
     : QGraphicsItemGroup(parent), m_url(url) {
@@ -275,10 +333,16 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
                     handled = true;
                     break;
                 }
+                // Check if it's a media file
+                else if (isMediaFile(file_path)) {
+                    handleMediaDrop(url, scene_pos);
+                    handled = true;
+                    break;
+                }
             }
         }
         
-        // If not handled as a directory or shortcut, try handling as an image
+        // If not handled as a directory, shortcut, or media file, try handling as an image
         if (!handled && (mime_data->hasImage() || mime_data->hasUrls())) {
             handleImageDrop(mime_data, scene_pos);
             handled = true;
@@ -662,4 +726,113 @@ void InfiniteCanvas::resetZoom() {
     
     // Restore center point
     centerOn(center_point);
+}
+
+void InfiniteCanvas::handleMediaDrop(const QUrl &url, const QPointF &pos)
+{
+    QString media_path = url.toLocalFile();
+    
+    if (!media_path.isEmpty()) {
+        // Get media file icon
+        QPixmap icon = getMediaIcon(media_path);
+        
+        // Create the media item
+        MediaItem *media_item = new MediaItem(icon, media_path);
+        
+        // Position at drop location
+        media_item->setPos(pos);
+        
+        // Add to scene
+        scene()->addItem(media_item);
+        
+        // Set tooltip to show complete media path
+        media_item->setToolTip(media_path);
+    }
+}
+
+// Check if the file is a media file (audio/video)
+bool InfiniteCanvas::isMediaFile(const QString &file_path)
+{
+    QFileInfo file_info(file_path);
+    QString suffix = file_info.suffix().toLower();
+    
+    // Common audio file extensions
+    static const QStringList audio_extensions = {
+        "mp3", "wav", "ogg", "flac", "aac", "wma", "m4a", "aiff"
+    };
+    
+    // Common video file extensions
+    static const QStringList video_extensions = {
+        "mp4", "avi", "mov", "wmv", "mkv", "flv", "webm", "m4v", "mpg", "mpeg"
+    };
+    
+    return audio_extensions.contains(suffix) || video_extensions.contains(suffix);
+}
+
+// Get media file icon
+QPixmap InfiniteCanvas::getMediaIcon(const QString &media_path)
+{
+    QFileIconProvider icon_provider;
+    QFileInfo file_info(media_path);
+    QIcon icon = icon_provider.icon(file_info);
+    
+    // Get a reasonable size for the icon
+    QPixmap pixmap = icon.pixmap(64, 64);
+    
+    // If we got an empty pixmap, use a default
+    if (pixmap.isNull()) {
+        pixmap = QPixmap(64, 64);
+        pixmap.fill(Qt::transparent);
+        
+        // Draw a media-specific default icon
+        QPainter painter(&pixmap);
+        
+        // Different colors for audio vs video
+        QString suffix = file_info.suffix().toLower();
+        
+        // Audio file extensions
+        static const QStringList audio_extensions = {
+            "mp3", "wav", "ogg", "flac", "aac", "wma", "m4a", "aiff"
+        };
+        
+        // Video file extensions
+        static const QStringList video_extensions = {
+            "mp4", "avi", "mov", "wmv", "mkv", "flv", "webm", "m4v", "mpg", "mpeg"
+        };
+        
+        if (audio_extensions.contains(suffix)) {
+            // Audio icon (blue)
+            painter.setBrush(QColor(100, 149, 237)); // Cornflower blue
+            painter.setPen(Qt::black);
+            painter.drawEllipse(8, 8, 48, 48);
+            
+            // Draw audio wave symbol
+            QPainterPath path;
+            path.moveTo(24, 22);
+            path.lineTo(24, 42);
+            path.moveTo(32, 18);
+            path.lineTo(32, 46);
+            path.moveTo(40, 22);
+            path.lineTo(40, 42);
+            
+            painter.setPen(QPen(Qt::white, 3));
+            painter.drawPath(path);
+        } 
+        else if (video_extensions.contains(suffix)) {
+            // Video icon (red)
+            painter.setBrush(QColor(205, 92, 92)); // Indian red
+            painter.setPen(Qt::black);
+            painter.drawRect(8, 8, 48, 48);
+            
+            // Draw video play symbol
+            QPolygonF triangle;
+            triangle << QPointF(24, 18) << QPointF(44, 32) << QPointF(24, 46);
+            
+            painter.setBrush(Qt::white);
+            painter.setPen(Qt::NoPen);
+            painter.drawPolygon(triangle);
+        }
+    }
+    
+    return pixmap;
 }
