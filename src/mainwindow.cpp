@@ -63,6 +63,7 @@ void MainWindow::setupMenus() {
   QAction *save_action = new QAction(tr("Save"), this);
   file_menu->addAction(save_action);
   connect(save_action, &QAction::triggered, this, &MainWindow::saveFile);
+  save_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_S));  // Add Ctrl+S shortcut
 
   file_menu->addSeparator();
 
@@ -70,6 +71,7 @@ void MainWindow::setupMenus() {
   QAction *exit_action = new QAction(tr("Exit"), this);
   file_menu->addAction(exit_action);
   connect(exit_action, &QAction::triggered, this, &MainWindow::close);
+  exit_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_W));  // Add Ctrl+W shortcut
 
   // Create Edit menu
   QMenu *edit_menu = menuBar()->addMenu(tr("Edit"));
