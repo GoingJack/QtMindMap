@@ -156,6 +156,17 @@ void MainWindow::saveToFile(const QString &file_name) {
   // Create a JSON object to store all data
   QJsonObject json_data;
 
+  // Log file save operation
+  qDebug() << "Saving file to:" << file_name;
+  
+  // Check for empty file name
+  if (file_name.isEmpty()) {
+    qCritical() << "Error: Empty file name specified for save operation";
+    QMessageBox::warning(this, tr("Save Error"),
+                         tr("No file name specified."));
+    return;
+  }
+
   // Save canvas view state
   QJsonObject view_state;
   view_state["scale_factor"] = m_graphics_view->getScaleFactor();
@@ -167,9 +178,35 @@ void MainWindow::saveToFile(const QString &file_name) {
 
   // Save items
   QJsonArray items_array;
+  
+  // Get all top-level items (exclude child items from item groups)
+  QList<QGraphicsItem*> all_items = m_scene->items();
+  QSet<QGraphicsItem*> processed_items;
+  QSet<QGraphicsItem*> child_items;
+  
+  // First identify all child items of QGraphicsItemGroup to avoid processing them separately
+  for (QGraphicsItem *item : all_items) {
+    // Check if the item is a QGraphicsItemGroup
+    QGraphicsItemGroup *group = dynamic_cast<QGraphicsItemGroup*>(item);
+    if (group) {
+      // Get all child items in the group
+      QList<QGraphicsItem*> children = group->childItems();
+      for (QGraphicsItem *child : children) {
+        child_items.insert(child);
+      }
+    }
+  }
+  
+  qDebug() << "Total scene items:" << all_items.size() 
+           << "Child items to exclude:" << child_items.size();
 
   // Iterate through all items in the scene
-  foreach (QGraphicsItem *item, m_scene->items()) {
+  for (QGraphicsItem *item : all_items) {
+    // Skip if already processed or is a child item
+    if (processed_items.contains(item) || child_items.contains(item)) {
+      continue;
+    }
+    
     QJsonObject item_data;
 
     // Save position for all items
@@ -184,51 +221,125 @@ void MainWindow::saveToFile(const QString &file_name) {
       item_data["font_family"] = text_item->font().family();
       item_data["font_size"] = text_item->font().pointSize();
       item_data["color"] = text_item->defaultTextColor().name();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
+      qDebug() << "Saved text item at" << item->pos();
     }
-    // Handle shortcut items
+    // Handle custom item types
+    else if (MediaItem *media_item = dynamic_cast<MediaItem*>(item)) {
+      item_data["type"] = "media";
+      item_data["media_path"] = media_item->getMediaPath();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
+      
+      // Mark all children as processed
+      for (QGraphicsItem *child : media_item->childItems()) {
+        processed_items.insert(child);
+      }
+      qDebug() << "Saved media item at" << item->pos();
+    }
+    else if (DirectoryItem *dir_item = dynamic_cast<DirectoryItem*>(item)) {
+      item_data["type"] = "directory";
+      item_data["dir_path"] = dir_item->getDirPath();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
+      
+      // Mark all children as processed
+      for (QGraphicsItem *child : dir_item->childItems()) {
+        processed_items.insert(child);
+      }
+      qDebug() << "Saved directory item at" << item->pos();
+    }
+    else if (UrlItem *url_item = dynamic_cast<UrlItem*>(item)) {
+      item_data["type"] = "url";
+      item_data["url"] = url_item->getUrl().toString();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
+      
+      // Mark all children as processed
+      for (QGraphicsItem *child : url_item->childItems()) {
+        processed_items.insert(child);
+      }
+      qDebug() << "Saved URL item at" << item->pos();
+    }
+    // Handle shortcut items - not a group but has custom data
+    else if (ShortcutItem *shortcut_item = dynamic_cast<ShortcutItem*>(item)) {
+      item_data["type"] = "shortcut";
+      item_data["target_path"] = shortcut_item->getTargetPath();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
+      qDebug() << "Saved shortcut item at" << item->pos();
+    }
+    // Alternative detection based on data() for non-dynamic items
     else if (item->data(1).toString() == "shortcut") {
       item_data["type"] = "shortcut";
       item_data["target_path"] = item->data(0).toString();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
     }
-    // Handle URL items
     else if (item->data(1).toString() == "url") {
       item_data["type"] = "url";
       item_data["url"] = item->data(0).toString();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
     }
-    // Handle directory items
     else if (item->data(1).toString() == "directory") {
       item_data["type"] = "directory";
       item_data["dir_path"] = item->data(0).toString();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
     }
-    // Handle media items
     else if (item->data(1).toString() == "media") {
       item_data["type"] = "media";
       item_data["media_path"] = item->data(0).toString();
+      
+      items_array.append(item_data);
+      processed_items.insert(item);
     }
     // Handle pixmap items (images)
     else if (QGraphicsPixmapItem *pixmap_item =
                  dynamic_cast<QGraphicsPixmapItem *>(item)) {
+      // Check if this pixmap is part of a group - should have been handled by parent group
+      if (pixmap_item->group()) {
+        continue;
+      }
+      
       item_data["type"] = "image";
       // We need to store image path, but QGraphicsPixmapItem doesn't store it
       // We'll use an object property to store file path when loading an image
       QVariant path_variant = pixmap_item->data(0);
-      if (path_variant.isValid()) {
+      if (path_variant.isValid() && !path_variant.toString().isEmpty()) {
         item_data["file_path"] = path_variant.toString();
+        
+        items_array.append(item_data);
+        processed_items.insert(item);
+        qDebug() << "Saved image item at" << item->pos();
+      } else {
+        qWarning() << "Skipping image with empty file path at" << item->pos();
       }
     }
     // Skip other item types
     else {
+      qDebug() << "Skipping unknown item type at" << item->pos();
       continue;
     }
-
-    items_array.append(item_data);
   }
 
   json_data["items"] = items_array;
+  qDebug() << "Saved" << items_array.size() << "items out of" << all_items.size() << "scene items";
 
   // Write JSON data to file
   QFile save_file(file_name);
   if (!save_file.open(QIODevice::WriteOnly)) {
+    qCritical() << "Failed to open file for writing:" << file_name << "Error:" << save_file.errorString();
     QMessageBox::warning(this, tr("Save Error"),
                          tr("Could not open file for writing."));
     return;
@@ -237,12 +348,35 @@ void MainWindow::saveToFile(const QString &file_name) {
   QJsonDocument save_doc(json_data);
   save_file.write(save_doc.toJson());
   save_file.close();
+  
+  qDebug() << "Successfully saved file:" << file_name << "Items saved:" << items_array.size();
 }
 
 void MainWindow::loadFromFile(const QString &file_name) {
+  // Log file load operation
+  qDebug() << "Loading file from:" << file_name;
+  
+  // Check for empty file name
+  if (file_name.isEmpty()) {
+    qCritical() << "Error: Empty file name specified for load operation";
+    QMessageBox::warning(this, tr("Load Error"),
+                         tr("No file name specified."));
+    return;
+  }
+
+  // Check if file exists
+  QFileInfo file_info(file_name);
+  if (!file_info.exists() || !file_info.isFile()) {
+    qCritical() << "Error: File does not exist or is not a regular file:" << file_name;
+    QMessageBox::warning(this, tr("Load Error"),
+                         tr("File does not exist or is not a regular file."));
+    return;
+  }
+
   // Read the JSON file
   QFile load_file(file_name);
   if (!load_file.open(QIODevice::ReadOnly)) {
+    qCritical() << "Failed to open file for reading:" << file_name << "Error:" << load_file.errorString();
     QMessageBox::warning(this, tr("Load Error"),
                          tr("Could not open file for reading."));
     return;
@@ -252,17 +386,34 @@ void MainWindow::loadFromFile(const QString &file_name) {
   load_file.close();
 
   QJsonDocument load_doc(QJsonDocument::fromJson(file_data));
+  if (load_doc.isNull() || !load_doc.isObject()) {
+    qCritical() << "Invalid JSON format in file:" << file_name;
+    QMessageBox::warning(this, tr("Load Error"),
+                         tr("File contains invalid JSON data."));
+    return;
+  }
+  
   QJsonObject json_data = load_doc.object();
 
   // Clear current scene
   m_scene->clear();
+  qDebug() << "Scene cleared. Initial item count:" << m_scene->items().count();
 
   // Restore items
   QJsonArray items_array = json_data["items"].toArray();
+  qDebug() << "Loading" << items_array.size() << "items from file";
+  
+  int logical_items_count = 0; // Count of logical/high-level items
+  
   for (int i = 0; i < items_array.size(); ++i) {
     QJsonObject item_data = items_array[i].toObject();
     QString type = item_data["type"].toString();
     QPointF pos(item_data["x"].toDouble(), item_data["y"].toDouble());
+
+    qDebug() << "Processing item" << i+1 << "of" << items_array.size() 
+             << "- Type:" << type 
+             << "Position:" << pos 
+             << "Current scene items:" << m_scene->items().count();
 
     if (type == "text") {
       // Create text item
@@ -288,7 +439,21 @@ void MainWindow::loadFromFile(const QString &file_name) {
       text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
       text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
 
+      // Get current count before adding
+      int before_count = m_scene->items().count();
+      
+      // Add to scene
       m_scene->addItem(text_item);
+      logical_items_count++;
+      
+      // Get current count after adding
+      int after_count = m_scene->items().count();
+      int added_count = after_count - before_count;
+      
+      qDebug() << "  - Added text item:" << content.left(20) << "..." 
+               << "Logical items:" << logical_items_count 
+               << "Added" << added_count << "actual scene items"
+               << "Total scene items:" << after_count;
     } else if (type == "shortcut") {
       // Create shortcut item
       QString target_path = item_data["target_path"].toString();
@@ -306,6 +471,9 @@ void MainWindow::loadFromFile(const QString &file_name) {
           pixmap.fill(Qt::transparent);
         }
 
+        // Get current count before adding
+        int before_count = m_scene->items().count();
+        
         // Create the shortcut item
         ShortcutItem *shortcut_item = new ShortcutItem(pixmap, target_path);
 
@@ -317,6 +485,18 @@ void MainWindow::loadFromFile(const QString &file_name) {
 
         // Add to scene
         m_scene->addItem(shortcut_item);
+        logical_items_count++;
+        
+        // Get current count after adding
+        int after_count = m_scene->items().count();
+        int added_count = after_count - before_count;
+        
+        qDebug() << "  - Added shortcut item:" << target_path 
+                 << "Logical items:" << logical_items_count 
+                 << "Added" << added_count << "actual scene items"
+                 << "Total scene items:" << after_count;
+      } else {
+        qWarning() << "Empty target path for shortcut item at position" << pos;
       }
     } else if (type == "url") {
       // Create URL item
@@ -325,6 +505,9 @@ void MainWindow::loadFromFile(const QString &file_name) {
       if (!url_str.isEmpty()) {
         QUrl url(url_str);
         if (url.isValid()) {
+          // Get current count before adding
+          int before_count = m_scene->items().count();
+          
           // Get icon for the website
           QPixmap icon = m_graphics_view->getWebsiteIcon(url);
           
@@ -339,13 +522,30 @@ void MainWindow::loadFromFile(const QString &file_name) {
           
           // Add to scene
           m_scene->addItem(url_item);
+          logical_items_count++;
+          
+          // Get current count after adding
+          int after_count = m_scene->items().count();
+          int added_count = after_count - before_count;
+          
+          qDebug() << "  - Added URL item:" << url_str 
+                   << "Logical items:" << logical_items_count 
+                   << "Added" << added_count << "actual scene items"
+                   << "Total scene items:" << after_count;
+        } else {
+          qWarning() << "Invalid URL:" << url_str;
         }
+      } else {
+        qWarning() << "Empty URL for URL item at position" << pos;
       }
     } else if (type == "directory") {
       // Create directory item
       QString dir_path = item_data["dir_path"].toString();
 
       if (!dir_path.isEmpty()) {
+        // Get current count before adding
+        int before_count = m_scene->items().count();
+        
         // Get icon for the directory
         QFileIconProvider icon_provider;
         QFileInfo dir_info(dir_path);
@@ -375,12 +575,27 @@ void MainWindow::loadFromFile(const QString &file_name) {
 
         // Add to scene
         m_scene->addItem(dir_item);
+        logical_items_count++;
+        
+        // Get current count after adding
+        int after_count = m_scene->items().count();
+        int added_count = after_count - before_count;
+        
+        qDebug() << "  - Added directory item:" << dir_path 
+                 << "Logical items:" << logical_items_count 
+                 << "Added" << added_count << "actual scene items"
+                 << "Total scene items:" << after_count;
+      } else {
+        qWarning() << "Empty directory path for directory item at position" << pos;
       }
     } else if (type == "media") {
       // Create media item
       QString media_path = item_data["media_path"].toString();
 
       if (!media_path.isEmpty()) {
+        // Get current count before adding
+        int before_count = m_scene->items().count();
+        
         // Get icon for the media file
         QPixmap icon = m_graphics_view->getMediaIcon(media_path);
         
@@ -395,13 +610,41 @@ void MainWindow::loadFromFile(const QString &file_name) {
         
         // Add to scene
         m_scene->addItem(media_item);
+        logical_items_count++;
+        
+        // Get current count after adding
+        int after_count = m_scene->items().count();
+        int added_count = after_count - before_count;
+        
+        qDebug() << "  - Added media item:" << media_path 
+                 << "Logical items:" << logical_items_count 
+                 << "Added" << added_count << "actual scene items"
+                 << "Total scene items:" << after_count;
+      } else {
+        qWarning() << "Empty media path for media item at position" << pos;
       }
     } else if (type == "image") {
       // Load image from file path
       QString file_path = item_data["file_path"].toString();
+      
+      if (file_path.isEmpty()) {
+        qWarning() << "Empty file path for image item at position" << pos;
+        continue;
+      }
+      
+      QFileInfo img_file_info(file_path);
+      if (!img_file_info.exists()) {
+        qWarning() << "Image file does not exist:" << file_path;
+        continue;
+      }
+      
+      qDebug() << "  - Loading image file:" << file_path;
       QImage image(file_path);
 
       if (!image.isNull()) {
+        // Get current count before adding
+        int before_count = m_scene->items().count();
+        
         QGraphicsPixmapItem *pixmap_item =
             new QGraphicsPixmapItem(QPixmap::fromImage(image));
         pixmap_item->setPos(pos);
@@ -411,7 +654,66 @@ void MainWindow::loadFromFile(const QString &file_name) {
         // Store the file path for later saving
         pixmap_item->setData(0, file_path);
 
+        // Add to scene
         m_scene->addItem(pixmap_item);
+        logical_items_count++;
+        
+        // Get current count after adding
+        int after_count = m_scene->items().count();
+        int added_count = after_count - before_count;
+        
+        qDebug() << "  - Added image item:" << file_path 
+                 << "Logical items:" << logical_items_count 
+                 << "Added" << added_count << "actual scene items"
+                 << "Total scene items:" << after_count;
+      } else {
+        qWarning() << "Failed to load image from:" << file_path;
+      }
+    } else {
+      qWarning() << "Unknown item type:" << type << "at position" << pos;
+    }
+  }
+
+  int actual_item_count = m_scene->items().count();
+  qDebug() << "Successfully loaded" << logical_items_count << "logical items out of" << items_array.size() << "items from file";
+  qDebug() << "Final scene item count:" << actual_item_count << "(includes group component items)";
+  
+  // Explain any discrepancy between logical items and actual scene items
+  if (logical_items_count != items_array.size()) {
+    qWarning() << "LOGICAL ITEMS DISCREPANCY: Loaded" << logical_items_count 
+               << "logical items but the file contained" << items_array.size() << "items";
+  }
+  
+  if (logical_items_count != actual_item_count) {
+    qDebug() << "NOTE: The difference between logical items (" << logical_items_count 
+             << ") and scene items (" << actual_item_count 
+             << ") is expected due to item groups (like MediaItem, DirectoryItem, etc.)";
+    
+    // List all items for debugging if requested
+    bool list_all_items = false;  // Set to true to enable detailed listing
+    if (list_all_items) {
+      int idx = 0;
+      foreach (QGraphicsItem *item, m_scene->items()) {
+        QString itemType = "Unknown";
+        
+        if (dynamic_cast<QGraphicsTextItem*>(item))
+          itemType = "Text";
+        else if (dynamic_cast<ShortcutItem*>(item))
+          itemType = "Shortcut";
+        else if (dynamic_cast<UrlItem*>(item))
+          itemType = "URL";
+        else if (dynamic_cast<DirectoryItem*>(item))
+          itemType = "Directory";
+        else if (dynamic_cast<MediaItem*>(item))
+          itemType = "Media";
+        else if (dynamic_cast<QGraphicsPixmapItem*>(item))
+          itemType = "Image";
+        else if (dynamic_cast<QGraphicsSimpleTextItem*>(item))
+          itemType = "Label";
+        else if (dynamic_cast<QGraphicsItemGroup*>(item))
+          itemType = "Group";
+        
+        qDebug() << "  Scene item" << ++idx << ":" << itemType << "at" << item->pos();
       }
     }
   }
@@ -432,7 +734,15 @@ void MainWindow::loadFromFile(const QString &file_name) {
       double center_y = view_state["center_y"].toDouble();
       m_graphics_view->centerOn(center_x, center_y);
     }
+    
+    qDebug() << "Restored view state: scale =" << scale_factor
+             << "center =(" << view_state["center_x"].toDouble()
+             << "," << view_state["center_y"].toDouble() << ")";
+  } else {
+    qDebug() << "No view state found in file, using defaults";
   }
+  
+  qDebug() << "File loading complete:" << file_name;
 }
 
 void MainWindow::showAbout() {
