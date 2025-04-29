@@ -212,6 +212,48 @@ QString UrlItem::getDomainFromUrl(const QUrl &url) {
     return host;
 }
 
+// EditableTextItem implementation
+EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
+    : QGraphicsTextItem(text, parent)
+{
+    // Set flags for selection and movement
+    setFlag(QGraphicsItem::ItemIsSelectable, true);
+    setFlag(QGraphicsItem::ItemIsMovable, true);
+    
+    // Not editable by default
+    setTextInteractionFlags(Qt::NoTextInteraction);
+}
+
+void EditableTextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
+{
+    // Enable editing on double click
+    setTextInteractionFlags(Qt::TextEditorInteraction);
+    setFocus();
+    
+    // Change cursor to text editing cursor (I-beam)
+    setCursor(Qt::IBeamCursor);
+    
+    // Call parent method
+    QGraphicsTextItem::mouseDoubleClickEvent(event);
+}
+
+void EditableTextItem::focusOutEvent(QFocusEvent *event)
+{
+    // Disable editing when focus is lost
+    setTextInteractionFlags(Qt::NoTextInteraction);
+    
+    // Restore to view's default cursor
+    unsetCursor();
+    
+    // Clear text selection
+    QTextCursor cursor = textCursor();
+    cursor.clearSelection();
+    setTextCursor(cursor);
+    
+    // Call parent method
+    QGraphicsTextItem::focusOutEvent(event);
+}
+
 // InfiniteCanvas implementation
 InfiniteCanvas::InfiniteCanvas(QGraphicsScene *scene, QWidget *parent)
     : QGraphicsView(scene, parent),
@@ -445,26 +487,19 @@ void InfiniteCanvas::handleTextDrop(const QMimeData *mime_data, const QPointF &p
             if (isUrl(text)) {
                 handleUrlDrop(text, pos);
             } else {
-                // Create a text item
-                QGraphicsTextItem *text_item = new QGraphicsTextItem(text);
+                // Create custom text item with double-click editing
+                EditableTextItem *text_item = new EditableTextItem(text);
                 
-                // Set font and other properties
+                // Set font and color
                 QFont font("Arial", 12);
                 text_item->setFont(font);
                 text_item->setDefaultTextColor(Qt::black);
                 
-                // Position the text at the drop position
+                // Set position
                 text_item->setPos(pos);
                 
                 // Add to scene
                 scene()->addItem(text_item);
-                
-                // Make the item selectable and movable
-                text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-                text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
-                
-                // Enable text editing
-                text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
             }
         }
     }
@@ -942,6 +977,8 @@ void InfiniteCanvas::keyPressEvent(QKeyEvent *event)
     if ((event->key() == Qt::Key_V) && (event->modifiers() & Qt::ControlModifier)) {
         // Check if there's a text item in edit mode
         QGraphicsItem *focused_item = scene()->focusItem();
+        
+        // Check for both standard QGraphicsTextItem and our custom EditableTextItem
         QGraphicsTextItem *text_item = qgraphicsitem_cast<QGraphicsTextItem*>(focused_item);
         
         // If a text item is being edited, let the event pass through

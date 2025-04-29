@@ -60,6 +60,7 @@
 #include <QSystemTrayIcon>
 #include <QKeyEvent>
 #include <QContextMenuEvent>
+#include <QTextCursor>
 
 // Qt Graphics
 #include <QGraphicsScene>

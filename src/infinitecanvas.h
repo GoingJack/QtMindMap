@@ -82,6 +82,17 @@ private:
     QString getFileName(const QString &path);
 };
 
+// Custom text item with double-click editing
+class EditableTextItem : public QGraphicsTextItem
+{
+public:
+    EditableTextItem(const QString &text, QGraphicsItem *parent = nullptr);
+    
+protected:
+    void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
+    void focusOutEvent(QFocusEvent *event) override;
+};
+
 class InfiniteCanvas : public QGraphicsView
 {
     Q_OBJECT

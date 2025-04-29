@@ -603,7 +603,7 @@ void MainWindow::loadFromFile(const QString &file_name) {
     if (type == "text") {
       // Create text item
       QString content = item_data["content"].toString();
-      QGraphicsTextItem *text_item = new QGraphicsTextItem(content);
+      EditableTextItem *text_item = new EditableTextItem(content);
 
       // Set font properties if available
       if (item_data.contains("font_family") &&
@@ -618,11 +618,8 @@ void MainWindow::loadFromFile(const QString &file_name) {
         text_item->setDefaultTextColor(QColor(item_data["color"].toString()));
       }
 
-      // Set position and flags
+      // Set position
       text_item->setPos(pos);
-      text_item->setFlag(QGraphicsItem::ItemIsSelectable, true);
-      text_item->setFlag(QGraphicsItem::ItemIsMovable, true);
-      text_item->setTextInteractionFlags(Qt::TextEditorInteraction);
 
       // Get current count before adding
       int before_count = m_scene->items().count();
