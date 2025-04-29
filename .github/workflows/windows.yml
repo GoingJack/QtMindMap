@@ -1,0 +1,131 @@
+name: Windows
+on: 
+  push:
+    paths:
+      - 'src/**'
+      - '.github/workflows/windows.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - '.github/workflows/windows.yml' 
+jobs:
+  build:
+    name: Build
+    # windows-latest is windows server 2022
+    runs-on: windows-latest
+    strategy:
+      # matrix config
+      matrix:
+        qt-ver: [5.15.2]
+        qt-arch: [win64_msvc2019_64, win32_msvc2019]
+        include:
+          - qt-arch: win64_msvc2019_64
+            msvc-arch: x64
+            qt-arch-install: msvc2019_64
+          - qt-arch: win32_msvc2019
+            msvc-arch: x86
+            qt-arch-install: msvc2019
+    env:
+      target-name: QtMindMap.exe
+      package-target-name: QtMindMap
+      qt-install-path: ${{ github.workspace }}/qt-${{ matrix.qt-ver }}-${{ matrix.qt-arch }}  # example：qt-5.15.2-win64_msvc2019_64
+      platform-des: win
+    steps:
+      # pull code
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Cache Qt
+        id: cache-qt
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.qt-install-path }}
+          key: ${{ runner.os }}-qt-${{ matrix.qt-ver }}-${{ matrix.qt-arch }}     
+
+      - name: Install Qt
+        if: steps.cache-qt.outputs.cache-hit != 'true'
+        uses: jurplel/install-qt-action@v4.1.1
+        with:
+          # Version of Qt to install
+          version: ${{ matrix.qt-ver }}
+          # Target platform for build
+          target: desktop
+          # Architecture for Windows
+          arch: ${{ matrix.qt-arch }}
+          install-dir: ${{ env.qt-install-path }}
+          cached: ${{ steps.cache-qt.outputs.cache-hit }}
+
+      # Setup CMake
+      - name: Setup CMake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: '3.25.0'
+
+      # MSVC build
+      - name: MSVC Build
+        id: build
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.msvc-arch }}
+          mkdir build
+          cd build
+          cmake .. -G "NMake Makefiles" -DCMAKE_PREFIX_PATH="${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}" -DCMAKE_BUILD_TYPE=Release
+          nmake
+
+      # Get version for release naming
+      - name: Get the version
+        shell: bash
+        id: get-version
+        run: echo ::set-output name=version::${GITHUB_REF##*/}
+
+      # Package
+      - name: Package Application
+        id: package      
+        env:
+          archiveName: ${{env.package-target-name}}-${{ env.platform-des }}-${{ matrix.msvc-arch }}-${{ steps.get-version.outputs.version }}
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory "${env:archiveName}"
+          
+          # Copy executable and required files
+          if (Test-Path "build\${{ env.target-name }}") {
+            Copy-Item "build\${{ env.target-name }}" -Destination "${env:archiveName}/"
+          } elseif (Test-Path "build\Release\${{ env.target-name }}") {
+            Copy-Item "build\Release\${{ env.target-name }}" -Destination "${env:archiveName}/"
+          } elseif (Test-Path "src\release\${{ env.target-name }}") {
+            Copy-Item "src\release\${{ env.target-name }}" -Destination "${env:archiveName}/"
+          } else {
+            Write-Error "Executable not found!"
+            exit 1
+          }
+          
+          # Run windeployqt to bundle Qt dependencies
+          $QtBinPath = Join-Path "${{ env.qt-install-path }}" "${{ matrix.qt-arch-install }}\bin"
+          $windeployqt = Join-Path $QtBinPath "windeployqt.exe"
+          
+          & $windeployqt "${env:archiveName}\${{ env.target-name }}" --no-system-d3d-compiler --no-opengl-sw
+
+          # Compress the folder
+          Compress-Archive -Path "${env:archiveName}" -DestinationPath "${env:archiveName}.zip"
+          
+          # Set output for next steps
+          $name = ${env:archiveName}
+          echo "::set-output name=packageName::$name"
+          
+      # Upload artifact      
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.package.outputs.packageName }}
+          path: ${{ steps.package.outputs.packageName }}
+          
+      # Upload to release if this is a tag
+      - name: Upload Release
+        if: startsWith(github.event.ref, 'refs/tags/')
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: ${{ steps.package.outputs.packageName }}.zip
+          asset_name: ${{ steps.package.outputs.packageName }}.zip
+          tag: ${{ github.ref }}
+          overwrite: true 
