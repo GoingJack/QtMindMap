@@ -13,9 +13,14 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   // Initialize translator
   m_translator = new QTranslator(this);
-  m_current_lang = "en"; // Default to English
   
-  // Load default language (English)
+  // Load language from settings, default to English if not set
+  m_current_lang = loadLanguageSetting();
+  if (m_current_lang.isEmpty()) {
+    m_current_lang = "en"; // Default to English
+  }
+  
+  // Load language
   loadLanguage(m_current_lang);
 
   // Create menu bar
@@ -1311,13 +1316,17 @@ void MainWindow::setupLanguageMenu() {
   // Add more languages as needed
 }
 
-// Change application language
+// Change language and save the setting
 void MainWindow::changeLanguage(const QString &locale_code) {
   if (m_current_lang != locale_code) {
     qDebug() << "Changing language from" << m_current_lang << "to" << locale_code;
     QString old_lang = m_current_lang;
     m_current_lang = locale_code;
     loadLanguage(locale_code);
+    
+    // Save language setting to configuration file
+    saveLanguageSetting(locale_code);
+    
     qDebug() << "Language changed from" << old_lang << "to" << m_current_lang;
   } else {
     qDebug() << "Language already set to" << locale_code << ", no change needed";
@@ -1425,4 +1434,21 @@ void MainWindow::changeEvent(QEvent *event) {
   
   // Call base class implementation
   QMainWindow::changeEvent(event);
+}
+
+// Save language setting to configuration file
+void MainWindow::saveLanguageSetting(const QString &locale_code) {
+  QString settings_path = getSettingsFilePath();
+  QSettings settings(settings_path, QSettings::IniFormat);
+  settings.setValue("Language/CurrentLocale", locale_code);
+  qDebug() << "Saved language setting:" << locale_code << "to" << settings_path;
+}
+
+// Load language setting from configuration file
+QString MainWindow::loadLanguageSetting() {
+  QString settings_path = getSettingsFilePath();
+  QSettings settings(settings_path, QSettings::IniFormat);
+  QString locale_code = settings.value("Language/CurrentLocale", "").toString();
+  qDebug() << "Loaded language setting:" << locale_code << "from" << settings_path;
+  return locale_code;
 }

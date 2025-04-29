@@ -45,6 +45,10 @@ private:
     QString getSettingsFilePath();
     void tryLoadRecentFile();
     
+    // Language settings
+    void saveLanguageSetting(const QString &locale_code);
+    QString loadLanguageSetting();
+    
     InfiniteCanvas *m_graphics_view;
     QGraphicsScene *m_scene;
     QString m_current_file;
