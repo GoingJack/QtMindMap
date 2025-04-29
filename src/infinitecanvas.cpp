@@ -278,12 +278,24 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
     // Convert the drop position to scene coordinates
     QPointF scene_pos = mapToScene(event->pos());
     
-    const QMimeData *mime_data = event->mimeData();
+    // Process the drop using our universal handler
+    if (processItemFromMimeData(event->mimeData(), scene_pos)) {
+        event->acceptProposedAction();
+    }
+}
+
+// Universal handler for mime data (used by both drag-drop and paste)
+bool InfiniteCanvas::processItemFromMimeData(const QMimeData *mime_data, const QPointF &pos)
+{
+    if (!mime_data) {
+        return false;
+    }
     
-    // Handle URL drops (including shortcuts and directories)
+    bool handled = false;
+    
+    // Handle URL data (including shortcuts and directories)
     if (mime_data->hasUrls()) {
         QList<QUrl> urls = mime_data->urls();
-        bool handled = false;
         
         for (const QUrl &url : urls) {
             if (url.isLocalFile()) {
@@ -292,19 +304,19 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
                 
                 // Check if it's a directory
                 if (isDirectory(file_path)) {
-                    handleDirectoryDrop(url, scene_pos);
+                    handleDirectoryDrop(url, pos);
                     handled = true;
                     break;
                 }
                 // Check if it's a Windows shortcut file
                 else if (file_info.suffix().toLower() == "lnk") {
-                    handleShortcutDrop(url, scene_pos);
+                    handleShortcutDrop(url, pos);
                     handled = true;
                     break;
                 }
                 // Check if it's a media file
                 else if (isMediaFile(file_path)) {
-                    handleMediaDrop(url, scene_pos);
+                    handleMediaDrop(url, pos);
                     handled = true;
                     break;
                 }
@@ -313,21 +325,23 @@ void InfiniteCanvas::dropEvent(QDropEvent *event)
         
         // If not handled as a directory, shortcut, or media file, try handling as an image
         if (!handled && (mime_data->hasImage() || mime_data->hasUrls())) {
-            handleImageDrop(mime_data, scene_pos);
+            handleImageDrop(mime_data, pos);
             handled = true;
         }
-        
-        if (handled) {
-            event->acceptProposedAction();
-            return;
-        }
+    }
+    // Handle image data if no URLs or URLs weren't handled
+    else if (!handled && mime_data->hasImage()) {
+        handleImageDrop(mime_data, pos);
+        handled = true;
     }
     
-    // Handle text drops
-    if (mime_data->hasText()) {
-        handleTextDrop(mime_data, scene_pos);
-        event->acceptProposedAction();
+    // Handle text data if nothing else was handled
+    if (!handled && mime_data->hasText()) {
+        handleTextDrop(mime_data, pos);
+        handled = true;
     }
+    
+    return handled;
 }
 
 void InfiniteCanvas::handleImageDrop(const QMimeData *mime_data, const QPointF &pos)
@@ -502,7 +516,8 @@ QPixmap InfiniteCanvas::getWebsiteIcon(const QUrl &url)
     if (url.host().isEmpty()) {
         letter = "W";
     } else {
-        letter = QString(url.host().at(0).toUpper());
+        QChar first_char = url.host().at(0).toUpper();
+        letter = QString(first_char);
     }
     painter.drawText(fallback_icon.rect(), Qt::AlignCenter, letter);
     
@@ -872,4 +887,81 @@ QPixmap InfiniteCanvas::getMediaIcon(const QString &media_path)
     }
     
     return pixmap;
+}
+
+void InfiniteCanvas::pasteFromClipboard()
+{
+    qDebug() << "Pasting from clipboard...";
+    
+    // Get clipboard
+    const QClipboard *clipboard = QApplication::clipboard();
+    const QMimeData *mime_data = clipboard->mimeData();
+    
+    if (!mime_data) {
+        qWarning() << "Clipboard is empty or inaccessible";
+        return;
+    }
+    
+    // Determine paste position
+    QPointF paste_pos;
+    
+    // Get current mouse position in view coordinates
+    QPoint mouse_pos = mapFromGlobal(QCursor::pos());
+    
+    // Check if mouse is over the view
+    if (rect().contains(mouse_pos)) {
+        // Use mouse position if it's over the graphics view
+        paste_pos = mapToScene(mouse_pos);
+        qDebug() << "Pasting at mouse position:" << paste_pos;
+    } else {
+        // Otherwise use the center of the current view
+        paste_pos = mapToScene(viewport()->rect().center());
+        qDebug() << "Pasting at view center:" << paste_pos;
+    }
+    
+    // Process the clipboard data
+    bool success = processItemFromMimeData(mime_data, paste_pos);
+    
+    if (success) {
+        qDebug() << "Successfully pasted item from clipboard";
+        
+        // Select the last added item (which should be the one we just pasted)
+        QList<QGraphicsItem*> all_items = scene()->items();
+        if (!all_items.isEmpty()) {
+            all_items.first()->setSelected(true);
+        }
+    } else {
+        qWarning() << "Failed to paste - unsupported clipboard format";
+    }
+}
+
+// Override key press event to handle keyboard shortcuts
+void InfiniteCanvas::keyPressEvent(QKeyEvent *event)
+{
+    // Check for Ctrl+V shortcut
+    if ((event->key() == Qt::Key_V) && (event->modifiers() & Qt::ControlModifier)) {
+        // Check if there's a text item in edit mode
+        QGraphicsItem *focused_item = scene()->focusItem();
+        QGraphicsTextItem *text_item = qgraphicsitem_cast<QGraphicsTextItem*>(focused_item);
+        
+        // If a text item is being edited, let the event pass through
+        if (text_item && (text_item->textInteractionFlags() & Qt::TextEditorInteraction)) {
+            QGraphicsView::keyPressEvent(event);
+            return;
+        }
+        
+        // Otherwise perform custom paste operation
+        pasteFromClipboard();
+        event->accept();
+        return;
+    }
+    
+    // Pass other key events to the parent class
+    QGraphicsView::keyPressEvent(event);
+}
+
+// Public copy method for MainWindow
+void InfiniteCanvas::copyToClipboard()
+{
+    copySelectedItemsToClipboard();
 }

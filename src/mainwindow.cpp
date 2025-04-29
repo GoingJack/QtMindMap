@@ -239,14 +239,37 @@ void MainWindow::setupMenus() {
   // Add Copy action
   QAction *copy_action = new QAction(tr("Copy"), this);
   edit_menu->addAction(copy_action);
+  connect(copy_action, &QAction::triggered, [this]() {
+    if (m_graphics_view) {
+      m_graphics_view->copyToClipboard();
+    }
+  });
+  copy_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_C));  // Add Ctrl+C shortcut
 
   // Add Paste action
   QAction *paste_action = new QAction(tr("Paste"), this);
   edit_menu->addAction(paste_action);
+  connect(paste_action, &QAction::triggered, [this]() {
+    if (m_graphics_view) {
+      m_graphics_view->pasteFromClipboard();
+    }
+  });
+  paste_action->setShortcut(QKeySequence(Qt::CTRL + Qt::Key_V));  // Add Ctrl+V shortcut
 
   // Add Delete action
   QAction *delete_action = new QAction(tr("Delete"), this);
   edit_menu->addAction(delete_action);
+  connect(delete_action, &QAction::triggered, [this]() {
+    if (m_graphics_view) {
+      // Call canvas's method to delete selected items
+      QList<QGraphicsItem*> selected_items = m_scene->selectedItems();
+      for (QGraphicsItem *item : selected_items) {
+        m_scene->removeItem(item);
+        delete item;
+      }
+    }
+  });
+  delete_action->setShortcut(QKeySequence(Qt::Key_Delete));  // Add Delete key shortcut
 
   // Create View menu
   QMenu *view_menu = menuBar()->addMenu(tr("View"));

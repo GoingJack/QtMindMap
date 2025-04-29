@@ -58,6 +58,8 @@
 #include <QImageReader>
 #include <QCloseEvent>
 #include <QSystemTrayIcon>
+#include <QKeyEvent>
+#include <QContextMenuEvent>
 
 // Qt Graphics
 #include <QGraphicsScene>
@@ -69,6 +71,7 @@
 #include <QGraphicsEllipseItem>
 #include <QGraphicsItemGroup>
 #include <QGraphicsSceneMouseEvent>
+#include <QGraphicsSimpleTextItem>
 
 // Qt Network
 #include <QUrl>
@@ -82,6 +85,9 @@
 
 // Qt Print Support
 #include <QPrinter>
+
+// Qt Regular Expressions
+#include <QRegularExpression>
 
 // Windows specific
 #ifdef Q_OS_WIN

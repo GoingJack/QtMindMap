@@ -84,6 +84,7 @@ private:
 
 class InfiniteCanvas : public QGraphicsView
 {
+    Q_OBJECT
 public:
     InfiniteCanvas(QGraphicsScene *scene, QWidget *parent = nullptr);
     
@@ -99,6 +100,15 @@ public:
     
     // Media file icon getter
     QPixmap getMediaIcon(const QString &media_path);
+    
+    // Paste from clipboard functionality
+    void pasteFromClipboard();
+
+    // Copy selected items to clipboard
+    void copyToClipboard();
+
+    // For MainWindow to access current zoom level
+    qreal currentZoomFactor() const { return m_scale_factor; }
 
 protected:
     void wheelEvent(QWheelEvent *event) override;
@@ -110,6 +120,9 @@ protected:
 
     // Context menu event handler
     void contextMenuEvent(QContextMenuEvent *event) override;
+    
+    // Key press handler for shortcuts
+    void keyPressEvent(QKeyEvent *event) override;
 
 private:
     // Helper methods for drag and drop
@@ -119,6 +132,9 @@ private:
     void handleShortcutDrop(const QUrl &url, const QPointF &pos);
     void handleDirectoryDrop(const QUrl &url, const QPointF &pos);
     void handleMediaDrop(const QUrl &url, const QPointF &pos);
+    
+    // Universal handler for mime data (used by both drag-drop and paste)
+    bool processItemFromMimeData(const QMimeData *mime_data, const QPointF &pos);
     
     // Helper method to delete selected items
     void deleteSelectedItems();
