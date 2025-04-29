@@ -61,6 +61,7 @@
 #include <QKeyEvent>
 #include <QContextMenuEvent>
 #include <QTextCursor>
+#include <QTextDocument>
 
 // Qt Graphics
 #include <QGraphicsScene>

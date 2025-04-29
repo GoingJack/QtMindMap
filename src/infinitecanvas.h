@@ -3,6 +3,10 @@
 
 #include "pch.h"
 
+// Forward declarations
+class EditableTextItem;
+class ConnectionLine;
+
 // Custom shortcut item class
 class ShortcutItem : public QGraphicsPixmapItem
 {
@@ -82,15 +86,79 @@ private:
     QString getFileName(const QString &path);
 };
 
+// Connection line between nodes
+class ConnectionLine : public QGraphicsPathItem
+{
+public:
+    ConnectionLine(EditableTextItem *from_item, EditableTextItem *to_item, QGraphicsItem *parent = nullptr);
+    
+    // Update line position based on connected items
+    void updatePosition();
+    
+    // Get source and target items
+    EditableTextItem* sourceItem() const { return m_source_item; }
+    EditableTextItem* targetItem() const { return m_target_item; }
+    
+    // Set color based on level or index
+    void setColorByIndex(int index);
+    
+private:
+    EditableTextItem *m_source_item;
+    EditableTextItem *m_target_item;
+    int m_level;
+    qreal m_curve_factor; // Controls the curve amount
+};
+
 // Custom text item with double-click editing
 class EditableTextItem : public QGraphicsTextItem
 {
 public:
     EditableTextItem(const QString &text, QGraphicsItem *parent = nullptr);
+    ~EditableTextItem();
+    
+    // Add or remove a child node
+    void addChildNode(EditableTextItem *child_node);
+    void removeChildNode(EditableTextItem *child_node);
+    
+    // Get parent and child nodes
+    EditableTextItem* parentNode() const { return m_parent_node; }
+    QList<EditableTextItem*> childNodes() const { return m_child_nodes; }
+    
+    // Set parent node
+    void setParentNode(EditableTextItem *parent);
+    
+    // Update all connections
+    void updateConnections();
+    
+    // Organize layout of children
+    void organizeChildrenLayout();
+    
+    // Override paint to draw border
+    void paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget = nullptr) override;
+    
+    // Override boundingRect to include border
+    QRectF boundingRect() const override;
+    
+    // Get depth level in tree (root=0)
+    int getDepthLevel() const;
+    
+    // Get total height requirement for this node and all descendants
+    qreal getTotalHeightRequirement() const;
     
 protected:
     void mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event) override;
     void focusOutEvent(QFocusEvent *event) override;
+    void contextMenuEvent(QGraphicsSceneContextMenuEvent *event) override;
+    void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
+    
+private:
+    EditableTextItem *m_parent_node;
+    QList<EditableTextItem*> m_child_nodes;
+    QList<ConnectionLine*> m_connections;
+    qreal m_padding; // Padding around text for border
+    
+    // Position children symmetrically
+    void positionChildrenSymmetrically();
 };
 
 class InfiniteCanvas : public QGraphicsView
@@ -120,6 +188,12 @@ public:
 
     // For MainWindow to access current zoom level
     qreal currentZoomFactor() const { return m_scale_factor; }
+    
+    // Create a new text node at the specified position
+    EditableTextItem* createTextNode(const QPointF &position, const QString &text = "New Node");
+    
+    // Organize the entire mind map layout from the selected node
+    void organizeLayoutFromNode(EditableTextItem* node);
 
 protected:
     void wheelEvent(QWheelEvent *event) override;

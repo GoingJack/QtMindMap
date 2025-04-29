@@ -212,9 +212,112 @@ QString UrlItem::getDomainFromUrl(const QUrl &url) {
     return host;
 }
 
-// EditableTextItem implementation
+// ConnectionLine implementation
+ConnectionLine::ConnectionLine(EditableTextItem *from_item, EditableTextItem *to_item, QGraphicsItem *parent)
+    : QGraphicsPathItem(parent), m_source_item(from_item), m_target_item(to_item), m_level(0), m_curve_factor(50.0)
+{
+    // Set pen for the line
+    QPen line_pen(QColor(70, 130, 180), 2.0); // Steel blue, thicker line
+    line_pen.setStyle(Qt::SolidLine);
+    setPen(line_pen);
+    
+    // Update initial position
+    updatePosition();
+    
+    // Make sure the line is below the text items (drawn first)
+    setZValue(-1);
+    
+    // Not selectable or movable directly (moves with nodes)
+    setFlag(QGraphicsItem::ItemIsSelectable, false);
+    setFlag(QGraphicsItem::ItemIsMovable, false);
+    
+    // Set color based on level/index
+    int level = to_item->getDepthLevel();
+    setColorByIndex(level);
+}
+
+void ConnectionLine::updatePosition()
+{
+    if (!m_source_item || !m_target_item) {
+        return;
+    }
+    
+    // Get source and target item boundaries
+    QRectF source_rect = m_source_item->boundingRect().translated(m_source_item->pos());
+    QRectF target_rect = m_target_item->boundingRect().translated(m_target_item->pos());
+    
+    // Get center points
+    QPointF source_center = source_rect.center();
+    QPointF target_center = target_rect.center();
+    
+    // Determine which side of the source node to use based on relative positions
+    QPointF source_edge;
+    QPointF target_edge;
+    
+    // Calculate midpoints of all sides of the source rectangle
+    QPointF source_right_mid(source_rect.right(), source_rect.center().y());
+    QPointF source_left_mid(source_rect.left(), source_rect.center().y());
+    QPointF source_top_mid(source_rect.center().x(), source_rect.top());
+    QPointF source_bottom_mid(source_rect.center().x(), source_rect.bottom());
+    
+    // Calculate midpoints of all sides of the target rectangle
+    QPointF target_right_mid(target_rect.right(), target_rect.center().y());
+    QPointF target_left_mid(target_rect.left(), target_rect.center().y());
+    QPointF target_top_mid(target_rect.center().x(), target_rect.top());
+    QPointF target_bottom_mid(target_rect.center().x(), target_rect.bottom());
+    
+    // Determine the best exit point from source based on relative position of target
+    if (target_center.x() >= source_center.x()) {
+        // Target is to the right of source
+        source_edge = source_right_mid;
+    } else {
+        // Target is to the left of source
+        source_edge = source_left_mid;
+    }
+    
+    // Determine the best entry point to target based on relative position of source
+    if (source_center.x() <= target_center.x()) {
+        // Source is to the left of target
+        target_edge = target_left_mid;
+    } else {
+        // Source is to the right of target
+        target_edge = target_right_mid;
+    }
+    
+    // Create a curved path 
+    QPainterPath path;
+    path.moveTo(source_edge);
+    
+    // Calculate distance between nodes for curve control
+    qreal distance = QLineF(source_edge, target_edge).length();
+    
+    // Control point 1 - move from source along x-axis
+    QPointF control1 = source_edge + QPointF(distance * 0.4, 0);
+    
+    // Control point 2 - move from target along x-axis
+    QPointF control2 = target_edge - QPointF(distance * 0.4, 0);
+    
+    // Create the cubic Bezier curve
+    path.cubicTo(control1, control2, target_edge);
+    
+    // Set the path
+    setPath(path);
+}
+
+void ConnectionLine::setColorByIndex(int index)
+{
+    // Nice brown color for all connections
+    QColor line_color = QColor(139, 69, 19); // Saddle Brown
+    
+    // Create a pen with this color
+    QPen line_pen = pen();
+    line_pen.setColor(line_color);
+    setPen(line_pen);
+}
+
+// Updated EditableTextItem implementation
 EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
-    : QGraphicsTextItem(text, parent)
+    : QGraphicsTextItem(text, parent), m_parent_node(nullptr), m_padding(5.0)
 {
     // Set flags for selection and movement
     setFlag(QGraphicsItem::ItemIsSelectable, true);
@@ -222,6 +325,140 @@ EditableTextItem::EditableTextItem(const QString &text, QGraphicsItem *parent)
     
     // Not editable by default
     setTextInteractionFlags(Qt::NoTextInteraction);
+    
+    // Set data type for identification
+    setData(1, "text_node");
+    
+    // Set document margins to accommodate padding
+    document()->setDocumentMargin(m_padding);
+}
+
+QRectF EditableTextItem::boundingRect() const
+{
+    // Get the base bounding rect from QGraphicsTextItem
+    QRectF base_rect = QGraphicsTextItem::boundingRect();
+    
+    // Add padding for the border
+    return base_rect.adjusted(-m_padding, -m_padding, m_padding, m_padding);
+}
+
+void EditableTextItem::paint(QPainter *painter, const QStyleOptionGraphicsItem *option, QWidget *widget)
+{
+    // Save painter state
+    painter->save();
+    
+    // Get the rectangle to draw
+    QRectF rect = boundingRect();
+    
+    // Set up the pen for the border
+    QPen border_pen(QColor(100, 149, 237)); // Cornflower blue
+    border_pen.setWidth(1);
+    painter->setPen(border_pen);
+    
+    // Set up the brush for the background
+    QBrush background_brush(QColor(240, 248, 255)); // AliceBlue - very light blue
+    painter->setBrush(background_brush);
+    
+    // Draw rounded rectangle
+    qreal corner_radius = 8.0;
+    painter->drawRoundedRect(rect, corner_radius, corner_radius);
+    
+    // Restore painter state before drawing the text
+    painter->restore();
+    
+    // Let the base class draw the text content
+    QGraphicsTextItem::paint(painter, option, widget);
+}
+
+EditableTextItem::~EditableTextItem()
+{
+    // Remove connections to parent
+    if (m_parent_node) {
+        m_parent_node->removeChildNode(this);
+    }
+    
+    // Remove all connections to children
+    for (ConnectionLine *connection : m_connections) {
+        if (connection->scene()) {
+            connection->scene()->removeItem(connection);
+        }
+        delete connection;
+    }
+    
+    // Clear lists
+    m_connections.clear();
+    m_child_nodes.clear();
+}
+
+void EditableTextItem::addChildNode(EditableTextItem *child_node)
+{
+    if (!child_node || m_child_nodes.contains(child_node)) {
+        return;
+    }
+    
+    // Add to our children list
+    m_child_nodes.append(child_node);
+    
+    // Set us as the parent of the child
+    child_node->setParentNode(this);
+    
+    // Create connection line
+    if (scene()) {
+        ConnectionLine *connection = new ConnectionLine(this, child_node);
+        m_connections.append(connection);
+        scene()->addItem(connection);
+    }
+}
+
+void EditableTextItem::removeChildNode(EditableTextItem *child_node)
+{
+    if (!child_node || !m_child_nodes.contains(child_node)) {
+        return;
+    }
+    
+    // Find and remove the connection to this child
+    for (int i = 0; i < m_connections.size(); ++i) {
+        ConnectionLine *connection = m_connections[i];
+        if (connection->targetItem() == child_node) {
+            if (connection->scene()) {
+                connection->scene()->removeItem(connection);
+            }
+            m_connections.removeAt(i);
+            delete connection;
+            break;
+        }
+    }
+    
+    // Remove from children list
+    m_child_nodes.removeOne(child_node);
+    
+    // Set child's parent to null if it was us
+    if (child_node->parentNode() == this) {
+        child_node->setParentNode(nullptr);
+    }
+}
+
+void EditableTextItem::setParentNode(EditableTextItem *parent)
+{
+    // Don't set as parent if it's already a child
+    if (m_child_nodes.contains(parent)) {
+        return;
+    }
+    
+    m_parent_node = parent;
+}
+
+void EditableTextItem::updateConnections()
+{
+    // Update all connections
+    for (ConnectionLine *connection : m_connections) {
+        connection->updatePosition();
+    }
+    
+    // If we have a parent, it also needs to update the connection to us
+    if (m_parent_node) {
+        m_parent_node->updateConnections();
+    }
 }
 
 void EditableTextItem::mouseDoubleClickEvent(QGraphicsSceneMouseEvent *event)
@@ -252,6 +489,144 @@ void EditableTextItem::focusOutEvent(QFocusEvent *event)
     
     // Call parent method
     QGraphicsTextItem::focusOutEvent(event);
+}
+
+void EditableTextItem::contextMenuEvent(QGraphicsSceneContextMenuEvent *event)
+{
+    // Let the scene handle the context menu
+    event->ignore();
+}
+
+void EditableTextItem::mouseMoveEvent(QGraphicsSceneMouseEvent *event)
+{
+    // Let the base class handle the movement
+    QGraphicsTextItem::mouseMoveEvent(event);
+    
+    // Update connections after moving
+    updateConnections();
+}
+
+// Get depth level in tree (root=0)
+int EditableTextItem::getDepthLevel() const
+{
+    if (!m_parent_node) {
+        return 0; // This is a root node
+    }
+    
+    // Recursively calculate depth by adding 1 to parent's depth
+    return m_parent_node->getDepthLevel() + 1;
+}
+
+// Calculate total height requirement for this node and its descendants
+qreal EditableTextItem::getTotalHeightRequirement() const
+{
+    // Start with this node's height
+    qreal total_height = boundingRect().height() + 20; // Add some vertical spacing
+    
+    // If no children, just return this node's height
+    if (m_child_nodes.isEmpty()) {
+        return total_height;
+    }
+    
+    // Calculate sum of all children's height requirements
+    qreal children_height = 0;
+    for (EditableTextItem *child : m_child_nodes) {
+        children_height += child->getTotalHeightRequirement();
+    }
+    
+    // Return the larger of this node's height or its children's total
+    return qMax(total_height, children_height);
+}
+
+// Organize layout of this node's children
+void EditableTextItem::organizeChildrenLayout()
+{
+    // If no children, nothing to organize
+    if (m_child_nodes.isEmpty()) {
+        return;
+    }
+    
+    // Position children symmetrically around this node
+    positionChildrenSymmetrically();
+    
+    // Update connections after repositioning
+    updateConnections();
+    
+    // Recursively organize each child's children
+    for (EditableTextItem *child : m_child_nodes) {
+        child->organizeChildrenLayout();
+    }
+}
+
+// Position children symmetrically around this node
+void EditableTextItem::positionChildrenSymmetrically()
+{
+    if (m_child_nodes.isEmpty()) {
+        return;
+    }
+    
+    // Get this node's position and bounds
+    QPointF parent_pos = pos();
+    QRectF parent_rect = boundingRect();
+    
+    // Calculate parent center point
+    qreal parent_center_y = parent_pos.y() + parent_rect.height() / 2;
+    
+    // Standard horizontal distance from parent - all children at same x coordinate
+    qreal x_offset = parent_rect.width() + 100; // Increase distance for better visibility
+    
+    // Special case: if there's only one child, align it horizontally with parent
+    if (m_child_nodes.size() == 1) {
+        EditableTextItem *child = m_child_nodes.first();
+        
+        // Position child at same y-level as parent
+        child->setPos(parent_pos.x() + x_offset, parent_pos.y());
+        
+        // Update connection color
+        for (ConnectionLine* conn : m_connections) {
+            if (conn->targetItem() == child) {
+                conn->setColorByIndex(0);
+                break;
+            }
+        }
+        return;
+    }
+    
+    // For multiple children, calculate total height
+    QList<qreal> child_heights;
+    qreal total_height = 0;
+    
+    for (EditableTextItem *child : m_child_nodes) {
+        qreal height = child->boundingRect().height() + 30; // Increased vertical spacing
+        child_heights.append(height);
+        total_height += height;
+    }
+    
+    // Calculate starting y position to center around parent center point
+    qreal start_y = parent_center_y - (total_height / 2);
+    
+    // Position each child
+    for (int i = 0; i < m_child_nodes.size(); ++i) {
+        EditableTextItem *child = m_child_nodes[i];
+        QRectF child_rect = child->boundingRect();
+        
+        // Calculate y position for this child, accounting for the child's own height
+        qreal y_pos = start_y + (child_rect.height() / 2);
+        
+        // Update child position - all children aligned on same x coordinate
+        child->setPos(parent_pos.x() + x_offset, y_pos);
+        
+        // Update connection colors
+        for (ConnectionLine* conn : m_connections) {
+            if (conn->targetItem() == child) {
+                conn->setColorByIndex(0);
+                break;
+            }
+        }
+        
+        // Move to next position
+        start_y += child_heights[i];
+    }
 }
 
 // InfiniteCanvas implementation
@@ -597,7 +972,34 @@ void InfiniteCanvas::contextMenuEvent(QContextMenuEvent *event)
     QMenu context_menu(this);
     
     // Check if any items are selected
-    if (!scene()->selectedItems().isEmpty()) {
+    QList<QGraphicsItem*> selected_items = scene()->selectedItems();
+    if (!selected_items.isEmpty()) {
+        // Check if the selected item is a text node
+        if (selected_items.count() == 1 && dynamic_cast<EditableTextItem*>(selected_items.first())) {
+            EditableTextItem* text_node = dynamic_cast<EditableTextItem*>(selected_items.first());
+            
+            // Add "Add Child Node" action to the menu
+            QAction *add_child_action = context_menu.addAction(QObject::tr("Add Child Node"));
+            connect(add_child_action, &QAction::triggered, [this, text_node]() {
+                // Calculate position for new child (below and to the right)
+                QPointF child_pos = text_node->pos() + QPointF(50, 50);
+                
+                // Create child node
+                EditableTextItem *child_node = createTextNode(child_pos, "Child Node");
+                
+                // Add as child
+                text_node->addChildNode(child_node);
+            });
+            
+            // Add "Organize Layout" action to the menu
+            QAction *organize_action = context_menu.addAction(QObject::tr("Organize Layout"));
+            connect(organize_action, &QAction::triggered, [this, text_node]() {
+                organizeLayoutFromNode(text_node);
+            });
+            
+            context_menu.addSeparator();
+        }
+        
         // Add copy action to the menu
         QAction *copy_action = context_menu.addAction(QObject::tr("Copy to Clipboard"));
         connect(copy_action, &QAction::triggered, this, &InfiniteCanvas::copySelectedItemsToClipboard);
@@ -605,15 +1007,16 @@ void InfiniteCanvas::contextMenuEvent(QContextMenuEvent *event)
         // Add delete action to the menu
         QAction *delete_action = context_menu.addAction(QObject::tr("Delete"));
         connect(delete_action, &QAction::triggered, this, &InfiniteCanvas::deleteSelectedItems);
+    } else {
+        // If no selection, add action to create a new text node
+        QAction *new_node_action = context_menu.addAction(QObject::tr("Create New Node"));
+        connect(new_node_action, &QAction::triggered, [this, scene_pos]() {
+            createTextNode(scene_pos);
+        });
     }
     
-    // Only show the menu if it's not empty
-    if (!context_menu.actions().isEmpty()) {
-        context_menu.exec(event->globalPos());
-    } else {
-        // If no menu items, pass the event to the parent class
-        QGraphicsView::contextMenuEvent(event);
-    }
+    // Execute the menu
+    context_menu.exec(event->globalPos());
 }
 
 // Method to copy selected items to clipboard
@@ -1001,4 +1404,42 @@ void InfiniteCanvas::keyPressEvent(QKeyEvent *event)
 void InfiniteCanvas::copyToClipboard()
 {
     copySelectedItemsToClipboard();
+}
+
+// Create a new text node at the specified position
+EditableTextItem* InfiniteCanvas::createTextNode(const QPointF &position, const QString &text)
+{
+    // Create the text item
+    EditableTextItem *text_item = new EditableTextItem(text);
+    
+    // Set font and color
+    QFont font("Arial", 12);
+    text_item->setFont(font);
+    text_item->setDefaultTextColor(Qt::black);
+    
+    // Set position
+    text_item->setPos(position);
+    
+    // Add to scene
+    scene()->addItem(text_item);
+    
+    // Select the new item
+    scene()->clearSelection();
+    text_item->setSelected(true);
+    
+    return text_item;
+}
+
+// Organize the entire mind map layout from the selected node
+void InfiniteCanvas::organizeLayoutFromNode(EditableTextItem* node)
+{
+    if (!node) {
+        return;
+    }
+    
+    // Organize the layout starting from this node
+    node->organizeChildrenLayout();
+    
+    // Update the scene
+    scene()->update();
 }

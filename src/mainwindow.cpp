@@ -401,15 +401,50 @@ void MainWindow::saveToFile(const QString &file_name) {
     // Handle text items
     if (QGraphicsTextItem *text_item =
             dynamic_cast<QGraphicsTextItem *>(item)) {
-      item_data["type"] = "text";
-      item_data["content"] = text_item->toPlainText();
-      item_data["font_family"] = text_item->font().family();
-      item_data["font_size"] = text_item->font().pointSize();
-      item_data["color"] = text_item->defaultTextColor().name();
+      // Skip if it's a ConnectionLine or other item type we don't want to save directly
+      if (dynamic_cast<ConnectionLine*>(item)) {
+        continue;
+      }
       
-      items_array.append(item_data);
-      processed_items.insert(item);
-      qDebug() << "Saved text item at" << item->pos();
+      // Check if it's our custom EditableTextItem
+      EditableTextItem *editable_text = dynamic_cast<EditableTextItem *>(text_item);
+      if (editable_text) {
+        item_data["type"] = "text_node";
+        item_data["content"] = editable_text->toPlainText();
+        item_data["font_family"] = editable_text->font().family();
+        item_data["font_size"] = editable_text->font().pointSize();
+        item_data["color"] = editable_text->defaultTextColor().name();
+        
+        // Save item ID (its pointer as a string) for connections
+        QString item_id = QString::number((quintptr)editable_text);
+        item_data["id"] = item_id;
+        
+        // Save child node references
+        QJsonArray child_nodes;
+        for (EditableTextItem *child : editable_text->childNodes()) {
+          QString child_id = QString::number((quintptr)child);
+          child_nodes.append(child_id);
+        }
+        
+        if (!child_nodes.isEmpty()) {
+          item_data["child_nodes"] = child_nodes;
+        }
+        
+        items_array.append(item_data);
+        processed_items.insert(item);
+        qDebug() << "Saved text node at" << item->pos() << "with ID" << item_id;
+      } else {
+        // Standard text item
+        item_data["type"] = "text";
+        item_data["content"] = text_item->toPlainText();
+        item_data["font_family"] = text_item->font().family();
+        item_data["font_size"] = text_item->font().pointSize();
+        item_data["color"] = text_item->defaultTextColor().name();
+        
+        items_array.append(item_data);
+        processed_items.insert(item);
+        qDebug() << "Saved text item at" << item->pos();
+      }
     }
     // Handle custom item types
     else if (MediaItem *media_item = dynamic_cast<MediaItem*>(item)) {
@@ -600,7 +635,36 @@ void MainWindow::loadFromFile(const QString &file_name) {
              << "Position:" << pos 
              << "Current scene items:" << m_scene->items().count();
 
-    if (type == "text") {
+    if (type == "text_node") {
+      // Create text item
+      QString content = item_data["content"].toString();
+      EditableTextItem *text_item = m_graphics_view->createTextNode(pos, content);
+      text_item->setSelected(false);
+
+      // Set font properties if available
+      if (item_data.contains("font_family") &&
+          item_data.contains("font_size")) {
+        QFont font(item_data["font_family"].toString(),
+                   item_data["font_size"].toInt());
+        text_item->setFont(font);
+      }
+
+      // Set color if available
+      if (item_data.contains("color")) {
+        text_item->setDefaultTextColor(QColor(item_data["color"].toString()));
+      }
+
+      // Store original ID for later connecting nodes
+      if (item_data.contains("id")) {
+        QString id = item_data["id"].toString();
+        text_item->setData(0, id);
+      }
+
+      logical_items_count++;
+      qDebug() << "  - Added text node:" << content.left(20) << "..." 
+               << "Logical items:" << logical_items_count 
+               << "Total scene items:" << m_scene->items().count();
+    } else if (type == "text") {
       // Create text item
       QString content = item_data["content"].toString();
       EditableTextItem *text_item = new EditableTextItem(content);
@@ -865,6 +929,47 @@ void MainWindow::loadFromFile(const QString &file_name) {
     qWarning() << "LOGICAL ITEMS DISCREPANCY: Loaded" << logical_items_count 
                << "logical items but the file contained" << items_array.size() << "items";
   }
+  
+  // Process node connections after all items are loaded
+  // Create a map of saved IDs to actual node objects
+  QMap<QString, EditableTextItem*> node_map;
+  foreach(QGraphicsItem* item, m_scene->items()) {
+    EditableTextItem* text_node = dynamic_cast<EditableTextItem*>(item);
+    if (text_node && text_node->data(0).isValid()) {
+      QString id = text_node->data(0).toString();
+      if (!id.isEmpty()) {
+        node_map[id] = text_node;
+      }
+    }
+  }
+  
+  // Now create connections based on the saved relationships
+  for (int i = 0; i < items_array.size(); ++i) {
+    QJsonObject item_data = items_array[i].toObject();
+    if (item_data["type"].toString() == "text_node" && 
+        item_data.contains("id") && 
+        item_data.contains("child_nodes")) {
+      
+      QString parent_id = item_data["id"].toString();
+      if (node_map.contains(parent_id)) {
+        EditableTextItem* parent_node = node_map[parent_id];
+        
+        // Process each child reference
+        QJsonArray child_nodes = item_data["child_nodes"].toArray();
+        for (int j = 0; j < child_nodes.size(); ++j) {
+          QString child_id = child_nodes[j].toString();
+          if (node_map.contains(child_id)) {
+            EditableTextItem* child_node = node_map[child_id];
+            // Create connection
+            parent_node->addChildNode(child_node);
+            qDebug() << "Created connection from" << parent_id << "to" << child_id;
+          }
+        }
+      }
+    }
+  }
+  
+  qDebug() << "Finished processing node connections";
   
   if (logical_items_count != actual_item_count) {
     qDebug() << "NOTE: The difference between logical items (" << logical_items_count 
