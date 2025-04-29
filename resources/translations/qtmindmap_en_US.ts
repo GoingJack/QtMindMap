@@ -169,6 +169,10 @@ Supports drag and drop of images and text.</translation>
         <source>Canvas has been exported to PDF successfully.</source>
         <translation>Canvas has been exported to PDF successfully.</translation>
     </message>
+    <message>
+        <source>New File</source>
+        <translation>New File</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>

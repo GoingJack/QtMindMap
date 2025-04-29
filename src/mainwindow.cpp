@@ -63,6 +63,9 @@ MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
 
   // Try to load the most recent file
   tryLoadRecentFile();
+  
+  // Update window title based on the loaded file
+  updateWindowTitle();
 }
 
 void MainWindow::setupTrayIcon() {
@@ -328,6 +331,9 @@ void MainWindow::newFile() {
     m_graphics_view->resetZoom();
     m_graphics_view->centerOn(0, 0);
   }
+  
+  // Update window title
+  updateWindowTitle();
 }
 
 void MainWindow::openFile() {
@@ -341,6 +347,9 @@ void MainWindow::openFile() {
     saveRecentFilePath(file_name);
     // Store current file
     m_current_file = file_name;
+    
+    // Update window title
+    updateWindowTitle();
   }
 }
 
@@ -359,6 +368,9 @@ void MainWindow::saveFile() {
       saveRecentFilePath(file_name);
       // Store current file
       m_current_file = file_name;
+      
+      // Update window title
+      updateWindowTitle();
     }
   }
 }
@@ -1112,6 +1124,9 @@ void MainWindow::tryLoadRecentFile() {
     if (file.exists()) {
       loadFromFile(recent_file);
       m_current_file = recent_file;
+      
+      // Update window title
+      updateWindowTitle();
     }
   }
 }
@@ -1400,7 +1415,7 @@ void MainWindow::changeEvent(QEvent *event) {
   if (event->type() == QEvent::LanguageChange) {
     // Retranslate UI when language changes
     // Update window title
-    setWindowTitle(tr("QtMindMap"));
+    updateWindowTitle();
     
     // Update tray icon tooltip
     if (m_tray_icon) {
@@ -1460,4 +1475,24 @@ QString MainWindow::loadLanguageSetting() {
   QString locale_code = settings.value("Language/CurrentLocale", "").toString();
   qDebug() << "Loaded language setting:" << locale_code << "from" << settings_path;
   return locale_code;
+}
+
+// First add updateWindowTitle method to update the window title
+void MainWindow::updateWindowTitle() {
+  QString title = tr("QtMindMap");
+  
+  if (!m_current_file.isEmpty()) {
+    // Get filename without path
+    QFileInfo file_info(m_current_file);
+    QString file_name = file_info.fileName();
+    
+    // Set title to QtMindMap - filename
+    title = title + " - " + file_name;
+  } else {
+    // New file
+    title = title + " - " + tr("New File");
+  }
+  
+  // Set window title
+  setWindowTitle(title);
 }

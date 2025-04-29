@@ -5,7 +5,7 @@
     <name>MainWindow</name>
     <message>
         <source>QtMindMap</source>
-        <translation>QtMindMap</translation>
+        <translation>Qt思维导图</translation>
     </message>
     <message>
         <source>File</source>
@@ -168,6 +168,10 @@ Supports drag and drop of images and text.</source>
     <message>
         <source>File contains invalid JSON data.</source>
         <translation>文件包含无效的JSON数据。</translation>
+    </message>
+    <message>
+        <source>New File</source>
+        <translation>新文件</translation>
     </message>
 </context>
 <context>
