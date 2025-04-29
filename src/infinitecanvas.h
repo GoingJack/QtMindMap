@@ -152,7 +152,7 @@ protected:
     void mouseMoveEvent(QGraphicsSceneMouseEvent *event) override;
     
 private:
-    EditableTextItem *m_parent_node;
+    QPointer<EditableTextItem> m_parent_node;
     QList<EditableTextItem*> m_child_nodes;
     QList<ConnectionLine*> m_connections;
     qreal m_padding; // Padding around text for border
