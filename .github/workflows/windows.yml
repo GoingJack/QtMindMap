@@ -72,7 +72,29 @@ jobs:
           cd build
           cmake .. -G "NMake Makefiles" -DCMAKE_PREFIX_PATH="${{ env.qt-install-path }}/${{ matrix.qt-arch-install }}" -DCMAKE_BUILD_TYPE=Release
           nmake
-
+          
+          REM List build output to help with debugging
+          dir /s /b *.exe
+          cd ..
+      
+      # Fallback to qmake build if CMake fails
+      - name: QMake Build (Fallback)
+        id: qmake-build
+        if: failure() && steps.build.outcome == 'failure'
+        shell: cmd
+        run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" ${{ matrix.msvc-arch }}
+          
+          set PATH=${{ env.qt-install-path }}\${{ matrix.qt-arch-install }}\bin;%PATH%
+          cd src
+          
+          qmake -spec win32-msvc CONFIG+=release
+          nmake
+          
+          REM List build output to help with debugging
+          dir /s /b *.exe
+          cd ..
+          
       # Get version for release naming
       - name: Get the version
         shell: bash
@@ -86,25 +108,82 @@ jobs:
           archiveName: ${{env.package-target-name}}-${{ env.platform-des }}-${{ matrix.msvc-arch }}-${{ steps.get-version.outputs.version }}
         shell: pwsh
         run: |
+          # Debug: List directory contents to find the executable
+          Write-Host "Current directory: $(Get-Location)"
+          Write-Host "Listing directories to find executable:"
+          Get-ChildItem -Recurse -Include *.exe | ForEach-Object { Write-Host $_.FullName }
+          
           New-Item -ItemType Directory "${env:archiveName}"
           
-          # Copy executable and required files
-          if (Test-Path "build\${{ env.target-name }}") {
-            Copy-Item "build\${{ env.target-name }}" -Destination "${env:archiveName}/"
-          } elseif (Test-Path "build\Release\${{ env.target-name }}") {
-            Copy-Item "build\Release\${{ env.target-name }}" -Destination "${env:archiveName}/"
-          } elseif (Test-Path "src\release\${{ env.target-name }}") {
-            Copy-Item "src\release\${{ env.target-name }}" -Destination "${env:archiveName}/"
-          } else {
-            Write-Error "Executable not found!"
+          # Copy executable and required files - Extended search paths
+          $exePaths = @(
+            "build\${{ env.target-name }}",
+            "build\Release\${{ env.target-name }}",
+            "build\Debug\${{ env.target-name }}",
+            "build\RelWithDebInfo\${{ env.target-name }}",
+            "build\MinSizeRel\${{ env.target-name }}",
+            "src\release\${{ env.target-name }}",
+            "src\debug\${{ env.target-name }}",
+            ".\${{ env.target-name }}"
+          )
+          
+          $exeFound = $false
+          foreach ($path in $exePaths) {
+            if (Test-Path $path) {
+              Write-Host "Found executable at: $path"
+              Copy-Item $path -Destination "${env:archiveName}/"
+              $exeFound = $true
+              break
+            }
+          }
+          
+          if (-not $exeFound) {
+            # Try to find the executable anywhere in the repo
+            $foundExes = Get-ChildItem -Recurse -Filter "${{ env.target-name }}" -ErrorAction SilentlyContinue
+            if ($foundExes.Count -gt 0) {
+              $exePath = $foundExes[0].FullName
+              Write-Host "Found executable through search: $exePath"
+              Copy-Item $exePath -Destination "${env:archiveName}/"
+              $exeFound = $true
+            }
+          }
+          
+          if (-not $exeFound) {
+            Write-Error "Executable not found! Please check build output and correct the path."
             exit 1
           }
           
           # Run windeployqt to bundle Qt dependencies
           $QtBinPath = Join-Path "${{ env.qt-install-path }}" "${{ matrix.qt-arch-install }}\bin"
-          $windeployqt = Join-Path $QtBinPath "windeployqt.exe"
+          Write-Host "Qt bin path: $QtBinPath"
           
-          & $windeployqt "${env:archiveName}\${{ env.target-name }}" --no-system-d3d-compiler --no-opengl-sw
+          $windeployqt = Join-Path $QtBinPath "windeployqt.exe"
+          Write-Host "Windeployqt path: $windeployqt"
+          
+          if (Test-Path $windeployqt) {
+            & $windeployqt "${env:archiveName}\${{ env.target-name }}" --no-system-d3d-compiler --no-opengl-sw
+          } else {
+            Write-Warning "windeployqt.exe not found at $windeployqt"
+            # Try alternative paths
+            $altPaths = @(
+              "D:\a\QtMindMap\Qt\5.15.2\msvc2019_64\bin\windeployqt.exe",
+              "$env:QT_ROOT_DIR\bin\windeployqt.exe"
+            )
+            
+            $windeployqtFound = $false
+            foreach ($path in $altPaths) {
+              if (Test-Path $path) {
+                Write-Host "Found windeployqt at: $path"
+                & $path "${env:archiveName}\${{ env.target-name }}" --no-system-d3d-compiler --no-opengl-sw
+                $windeployqtFound = $true
+                break
+              }
+            }
+            
+            if (-not $windeployqtFound) {
+              Write-Warning "windeployqt.exe not found! Qt dependencies might be missing."
+            }
+          }
 
           # Compress the folder
           Compress-Archive -Path "${env:archiveName}" -DestinationPath "${env:archiveName}.zip"
