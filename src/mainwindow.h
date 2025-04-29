@@ -25,9 +25,11 @@ private slots:
     void trayIconActivated(QSystemTrayIcon::ActivationReason reason);
     void showMainWindow();
     void hideMainWindow();
+    void changeLanguage(const QString &locale_code);
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void changeEvent(QEvent *event) override;
     void exportToPng();
     void exportToPdf();
 
@@ -52,6 +54,15 @@ private:
     QSystemTrayIcon *m_tray_icon;
     QMenu *m_tray_menu;
     bool m_tray_message_shown; // Flag to track if tray message has been shown
+    
+    // Language handling
+    void setupLanguageMenu();
+    void loadLanguage(const QString &locale_code);
+    
+    // Language related
+    QTranslator *m_translator;
+    QString m_current_lang;
+    QMenu *m_lang_menu;
 };
 
 #endif // MAINWINDOW_H

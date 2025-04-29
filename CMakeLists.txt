@@ -11,8 +11,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_SOURCE_DIR}/output)
 
-find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets PrintSupport)
-find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets PrintSupport)
+find_package(QT NAMES Qt6 Qt5 REQUIRED COMPONENTS Widgets PrintSupport LinguistTools)
+find_package(Qt${QT_VERSION_MAJOR} REQUIRED COMPONENTS Widgets PrintSupport LinguistTools)
 
 set(PROJECT_SOURCES
         src/main.cpp
@@ -21,6 +21,13 @@ set(PROJECT_SOURCES
         src/infinitecanvas.h
         src/infinitecanvas.cpp
         src/pch.h
+)
+
+# Setup translation support
+set(TS_FILES
+    resources/translations/qtmindmap_zh_CN.ts
+    resources/translations/qtmindmap_en_US.ts
+    # Add more languages as needed
 )
 
 # Enable precompiled headers
@@ -70,3 +77,12 @@ install(TARGETS QtMindMap
 if(QT_VERSION_MAJOR EQUAL 6)
     qt_finalize_executable(QtMindMap)
 endif()
+
+# Create translated QM files
+qt_add_translation(QM_FILES ${TS_FILES})
+
+# Create translations resource file
+configure_file(resources/translations/translations.qrc ${CMAKE_CURRENT_BINARY_DIR} COPYONLY)
+
+# Add the resource file to the project sources
+target_sources(QtMindMap PRIVATE ${CMAKE_CURRENT_BINARY_DIR}/translations.qrc)

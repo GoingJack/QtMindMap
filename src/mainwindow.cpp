@@ -3,11 +3,20 @@
 #include "mainwindow.h"
 #include "infinitecanvas.h"
 
+static constexpr char kTranslationPath[] = ":/translations/";
+
 MainWindow::MainWindow(QWidget *parent) : QMainWindow(parent) {
   setWindowTitle(tr("QtMindMap"));
 
   // Initialize member variables
   m_tray_message_shown = false;
+
+  // Initialize translator
+  m_translator = new QTranslator(this);
+  m_current_lang = "en"; // Default to English
+  
+  // Load default language (English)
+  loadLanguage(m_current_lang);
 
   // Create menu bar
   setupMenus();
@@ -295,8 +304,11 @@ void MainWindow::setupMenus() {
 
   // Add About action
   QAction *about_action = new QAction(tr("About"), this);
-  help_menu->addAction(about_action);
   connect(about_action, &QAction::triggered, this, &MainWindow::showAbout);
+  help_menu->addAction(about_action);
+  
+  // Setup language menu
+  setupLanguageMenu();
 }
 
 void MainWindow::newFile() {
@@ -976,6 +988,7 @@ void MainWindow::loadFromFile(const QString &file_name) {
              << ") and scene items (" << actual_item_count 
              << ") is expected due to item groups (like MediaItem, DirectoryItem, etc.)";
     
+    
     // List all items for debugging if requested
     bool list_all_items = false;  // Set to true to enable detailed listing
     if (list_all_items) {
@@ -1270,4 +1283,146 @@ void MainWindow::exportToPdf()
     
     QMessageBox::information(this, tr("Export Successful"),
                              tr("Canvas has been exported to PDF successfully."));
+}
+
+// Setup language menu
+void MainWindow::setupLanguageMenu() {
+  // Create Settings menu
+  QMenu *settings_menu = menuBar()->addMenu(tr("Settings"));
+  
+  // Create Language submenu
+  m_lang_menu = settings_menu->addMenu(tr("Language"));
+  
+  // Add language options
+  QAction *english_action = new QAction("English", this);
+  english_action->setData("en");
+  english_action->setCheckable(true);
+  english_action->setChecked(m_current_lang == "en");
+  connect(english_action, &QAction::triggered, [this]() { changeLanguage("en"); });
+  m_lang_menu->addAction(english_action);
+  
+  QAction *chinese_action = new QAction("中文", this);
+  chinese_action->setData("zh");
+  chinese_action->setCheckable(true);
+  chinese_action->setChecked(m_current_lang == "zh");
+  connect(chinese_action, &QAction::triggered, [this]() { changeLanguage("zh"); });
+  m_lang_menu->addAction(chinese_action);
+  
+  // Add more languages as needed
+}
+
+// Change application language
+void MainWindow::changeLanguage(const QString &locale_code) {
+  if (m_current_lang != locale_code) {
+    qDebug() << "Changing language from" << m_current_lang << "to" << locale_code;
+    QString old_lang = m_current_lang;
+    m_current_lang = locale_code;
+    loadLanguage(locale_code);
+    qDebug() << "Language changed from" << old_lang << "to" << m_current_lang;
+  } else {
+    qDebug() << "Language already set to" << locale_code << ", no change needed";
+  }
+}
+
+// Load language
+void MainWindow::loadLanguage(const QString &locale_code) {
+  // Remove current translator if it exists
+  if (m_translator) {
+    qApp->removeTranslator(m_translator);
+  }
+  
+  // Load new translation
+  QString translation_file;
+  
+  // Handle Chinese special case
+  if (locale_code == "zh") {
+    translation_file = "qtmindmap_zh_CN";
+  } else if (locale_code.startsWith("zh_")) {
+    // Any Chinese variant uses zh_CN translation
+    translation_file = "qtmindmap_zh_CN";
+  } else if (locale_code.contains("_")) {
+    // Other languages with country codes
+    translation_file = "qtmindmap_" + locale_code;
+  } else {
+    // Languages with only language code
+    translation_file = "qtmindmap_" + locale_code + "_US";
+  }
+  
+  qDebug() << "Loading translation file:" << translation_file << "from path:" << kTranslationPath;
+  
+  bool loaded = m_translator->load(translation_file, kTranslationPath);
+  
+  if (loaded) {
+    qApp->installTranslator(m_translator);
+    qDebug() << "Successfully loaded translation for" << locale_code;
+  } else {
+    qWarning() << "Failed to load translation file:" << translation_file;
+    
+    // If version with country code fails, try version with just language code
+    if (locale_code.contains("_")) {
+      QString language = locale_code.split('_').first();
+      translation_file = "qtmindmap_" + language;
+      qDebug() << "Trying fallback translation:" << translation_file;
+      
+      if (m_translator->load(translation_file, kTranslationPath)) {
+        qApp->installTranslator(m_translator);
+        qDebug() << "Successfully loaded fallback translation";
+      } else {
+        qWarning() << "Failed to load fallback translation";
+      }
+    }
+  }
+  
+  // Qt will automatically send a LanguageChange event to all widgets
+  // when a translator is installed/removed
+}
+
+// Handle change events, including language change
+void MainWindow::changeEvent(QEvent *event) {
+  if (event->type() == QEvent::LanguageChange) {
+    // Retranslate UI when language changes
+    // Update window title
+    setWindowTitle(tr("QtMindMap"));
+    
+    // Update tray icon tooltip
+    if (m_tray_icon) {
+      m_tray_icon->setToolTip(tr("QtMindMap"));
+      
+      // Recreate tray icon menu to update translations
+      if (m_tray_menu) {
+        delete m_tray_menu;
+        m_tray_menu = nullptr;
+      }
+      
+      // Create new tray menu with updated translations
+      m_tray_menu = new QMenu(this);
+      
+      // Add "Show" menu item with updated translation
+      QAction *show_action = new QAction(tr("Show"), this);
+      connect(show_action, &QAction::triggered, this, &MainWindow::showMainWindow);
+      m_tray_menu->addAction(show_action);
+      
+      // Add "Hide" menu item with updated translation
+      QAction *hide_action = new QAction(tr("Hide"), this);
+      connect(hide_action, &QAction::triggered, this, &MainWindow::hideMainWindow);
+      m_tray_menu->addAction(hide_action);
+      
+      m_tray_menu->addSeparator();
+      
+      // Add "Exit" menu item with updated translation
+      QAction *quit_action = new QAction(tr("Exit"), this);
+      connect(quit_action, &QAction::triggered, qApp, &QCoreApplication::quit);
+      m_tray_menu->addAction(quit_action);
+      
+      // Set the updated menu to tray icon
+      m_tray_icon->setContextMenu(m_tray_menu);
+    }
+    
+    // Recreate all menus to update translations
+    menuBar()->clear();
+    setupMenus();
+  }
+  
+  // Call base class implementation
+  QMainWindow::changeEvent(event);
 }

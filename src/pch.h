@@ -33,6 +33,10 @@
 #include <QProcess>
 #include <QCoreApplication>
 
+// Qt Internationalization
+#include <QTranslator>
+#include <QLocale>
+
 // Qt GUI
 #include <QApplication>
 #include <QMainWindow>
