@@ -2,38 +2,40 @@
 
 [中文版](README_zh.md)
 
-## TODO List
+QtMindMap is a mind mapping application developed with the Qt framework, providing an intuitive interface and rich features to help users organize ideas and manage information.
 
-### Drag and Drop Extensions
-- [x] Text support
-- [x] Image support
-- [ ] Windows shortcut support (click to launch associated application)
-- [ ] Directory support (show OS-specific folder icon, double-click to open in file explorer/Finder)
-- [ ] Audio/Video file support (display media icons, double-click to open with default player)
-- [ ] URL support (display website icon, double-click to open with default browser)
+## Main Features
 
-### UI Enhancements
-- [ ] Always-on-top window functionality
-- [ ] Right-click menu option to copy image/text items back to clipboard
-- [ ] Custom themes and styling options
-- [ ] Keyboard shortcuts for common operations
+### Mind Mapping Capabilities
+- **Node Creation and Editing**: Create new nodes via right-click menu, double-click to edit node content
+- **Hierarchical Structure**: Support for parent-child node relationships, building multi-level mind maps
+- **Automatic Layout**: "Organize Layout" option in right-click menu automatically arranges nodes for a clean presentation
+- **Curved Connections**: Nodes connected with aesthetic curved lines, clearly showing relationships
+- **Node Styling**: Nodes feature rounded corners and attractive background colors for enhanced visual experience
 
-### Productivity Features
-- [ ] Automatic layout organization for mind maps
-- [ ] Cloud storage integration for saving and sharing canvases
-- [ ] Export functionality (PNG, PDF, SVG)
-- [ ] Templates for common diagram types
-- [ ] Search functionality to find items on large canvases
-- [ ] History/undo functionality with visual timeline
-- [ ] Tagging system for items to enable filtering
+### Multiple Content Support
+QtMindMap supports dragging and dropping various types of content onto the canvas:
+- **Text**: Directly drag or paste text to create nodes
+- **Images**: Support for dragging image files, automatically creating image nodes
+- **URL Links**: Drag URLs to create clickable link nodes
+- **File Shortcuts**: Drag file shortcuts (.lnk) to create executable shortcut nodes
+- **Folders**: Drag folders to create directory nodes, double-click to open
+- **Media Files**: Support for audio and video files, double-click to play
 
-### Advanced Features
-- [ ] OCR for images containing text
-- [ ] Auto-arrange feature to organize scattered items
-- [ ] Item linking/connection with customizable arrows
-- [ ] Embedded note-taking within items
-- [ ] Password protection for sensitive information
-- [ ] Split-screen view for working with multiple canvases
-- [ ] Voice recording/memo attachment to items
-- [ ] Simple spreadsheet/calculation capabilities for data items
+### Additional Features
+- **File Save and Load**: Save mind maps to files for later editing
+- **Export Functionality**: Support for exporting to PNG and PDF formats
+- **System Tray**: Minimize to system tray, available anytime
+- **Copy and Paste**: Support for copying and pasting nodes
+- **Zoom Control**: Use Ctrl+scroll wheel to adjust view zoom
 
+## Usage
+- Right-click on empty space to create a new node
+- Right-click on a selected node to add child nodes or organize layout
+- Drag and drop various content to the canvas
+- Double-click nodes to edit content
+- Use the file menu to save and load mind maps
+
+## System Requirements
+- Windows support
+- Requires Qt framework (5.x or higher)
