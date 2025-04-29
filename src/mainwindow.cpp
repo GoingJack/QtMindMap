@@ -319,6 +319,15 @@ void MainWindow::setupMenus() {
 void MainWindow::newFile() {
   // Clear the scene
   m_scene->clear();
+  
+  // Reset current file path since this is a new file
+  m_current_file = "";
+  
+  // Reset view to default state
+  if (m_graphics_view) {
+    m_graphics_view->resetZoom();
+    m_graphics_view->centerOn(0, 0);
+  }
 }
 
 void MainWindow::openFile() {
