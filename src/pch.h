@@ -32,6 +32,7 @@
 #include <QtMath>
 #include <QProcess>
 #include <QCoreApplication>
+#include <QSharedMemory>
 
 // Qt Internationalization
 #include <QTranslator>
